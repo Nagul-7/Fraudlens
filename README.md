@@ -11,6 +11,7 @@ Work in progress, built phase by phase per `PLAN.md`.
 
 - Phase 0 - project setup: done
 - Phase 1 - synthetic data engine: done (see `docs/phase1_notes.md`)
+- Phase 2 - feature pipeline with leakage test: done (see `docs/phase2_notes.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -63,7 +64,15 @@ python -m datagen.validate    # physics checks + plots in docs/
 All simulation parameters live in `datagen/config.py`, each with a comment on
 what it models. One fixed seed makes every run identical.
 
-Later phases will add feature-building, training and serving commands here.
+Build the training table (one row per district x 6-hour window) and prove
+no feature uses information from after its window starts:
+
+```bash
+python -m features.build          # ~10 s -> data/train_table.parquet
+python -m features.test_leakage   # brute-force check, must print LEAKAGE TEST PASSED
+```
+
+Later phases will add training and serving commands here.
 
 ## Data sources
 
