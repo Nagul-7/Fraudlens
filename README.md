@@ -7,8 +7,10 @@ CFCFRMS.
 
 ## Status
 
-Work in progress, built phase by phase per `PLAN.md`. Currently: Phase 0
-(project setup) complete.
+Work in progress, built phase by phase per `PLAN.md`.
+
+- Phase 0 - project setup: done
+- Phase 1 - synthetic data engine: done (see `docs/phase1_notes.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -50,8 +52,28 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Later phases will add generate / train / serve commands here as they are
-built.
+Generate the synthetic world (12 months, ~300 complaints/day, real India
+districts) and check it:
+
+```bash
+python -m datagen.generate    # ~45 s -> data/fraudlens.db
+python -m datagen.validate    # physics checks + plots in docs/
+```
+
+All simulation parameters live in `datagen/config.py`, each with a comment on
+what it models. One fixed seed makes every run identical.
+
+Later phases will add feature-building, training and serving commands here.
+
+## Data sources
+
+- District boundaries: public India districts GeoJSON curated by
+  [udit-001/india-maps-data](https://github.com/udit-001/india-maps-data)
+  (Census-2011 codes, later district splits included). Downloaded once by
+  `datagen/geo.py`; a cleaned copy with our `district_id` is committed at
+  `data/india_districts.geojson`.
+- Everything else (accounts, complaints, transactions, withdrawals) is
+  generated. No real personal or transaction data is used anywhere.
 
 ## Limitations
 

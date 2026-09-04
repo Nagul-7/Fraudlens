@@ -12,7 +12,7 @@
 2. Keep it simple: prefer boring, readable code over clever code. The builder is a beginner who must be able to explain every module to judges.
 3. After completing each phase, write a short `docs/phaseN_notes.md`: what was built, key decisions, how to run it, 3 likely judge questions + answers.
 4. Every phase ends with: code runs end-to-end, committed and pushed.
-5. Python 3.11+, single repo, no microservices, no Docker (unless trivial), SQLite for storage, no cloud dependencies. Everything must run on one laptop.
+5. Python 3.10+, single repo, no microservices, no Docker (unless trivial), SQLite for storage, no cloud dependencies. Everything must run on one laptop.
 
 ## Tech stack (fixed — do not bikeshed)
 

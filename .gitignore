@@ -17,6 +17,8 @@ env/
 data/*.db
 data/*.parquet
 data/*.csv
+# 4 MB raw download; the cleaned <1 MB copy is committed instead
+data/india_districts_raw.geojson
 !data/.gitkeep
 
 # Model artifacts
