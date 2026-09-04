@@ -1,0 +1,15 @@
+# Data / ML
+pandas>=2.2
+numpy>=1.26
+networkx>=3.2
+lightgbm>=4.3
+scikit-learn>=1.4
+matplotlib>=3.8
+pyarrow>=15.0
+
+# API
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# Dev / utility
+python-dateutil>=2.9
