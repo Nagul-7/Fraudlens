@@ -13,6 +13,7 @@ Work in progress, built phase by phase per `PLAN.md`.
 - Phase 1 - synthetic data engine: done (see `docs/phase1_notes.md`)
 - Phase 2 - feature pipeline with leakage test: done (see `docs/phase2_notes.md`)
 - Phase 3 - LightGBM model + evaluation: done (see `docs/phase3_notes.md`, `docs/metrics.md`)
+- Phase 4 - prediction API: done (see `docs/phase4_notes.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -86,7 +87,17 @@ against 52.2% for a trailing-7-day-heat baseline and 27.7% for a static hotspot
 list (perfect ranking would give 73.1%). Full numbers and caveats in
 `docs/metrics.md`.
 
-Later phases will add the API and dashboard commands here.
+Serve the predictions:
+
+```bash
+uvicorn api.main:app --reload     # http://127.0.0.1:8000/docs
+```
+
+The demo clock starts at the first window of the held-out test period, and the
+API returns HTTP 400 for any earlier window, so every score it serves is a
+genuine out-of-sample prediction.
+
+Later phases will add the dashboard.
 
 ## Data sources
 
