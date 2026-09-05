@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from datagen import config as DC
 from features import config as FC
@@ -67,6 +68,21 @@ def root():
     }
 
 
+@app.get("/geojson/districts")
+def districts_geojson():
+    """The district polygons, with `district_id` on every feature so the
+    dashboard can join risk scores to shapes. Served from the API rather than
+    duplicated into the frontend so there is one copy in the repo."""
+    return FileResponse(DC.GEOJSON_PATH, media_type="application/geo+json",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/states")
+def states():
+    """Distinct state names, for the dashboard's filter dropdown."""
+    return {"states": sorted(STATE.districts["state"].unique().tolist())}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok" if STATE.loaded else "loading",
@@ -76,6 +92,7 @@ def health():
 @app.get("/heatmap")
 def heatmap(window: str = Query("current", description="'current', an ISO timestamp, or a window index"),
             state: str | None = Query(None, description="filter to one state"),
+            fraud_category: str | None = Query(None, description="keep districts holding money from this fraud type"),
             min_risk: float = Query(0.0, ge=0.0, le=1.0)):
     """Per-district risk for one 6-hour window, joinable to the district
     GeoJSON on `district_id`."""
@@ -85,6 +102,7 @@ def heatmap(window: str = Query("current", description="'current', an ISO timest
         "district_id": rows["district_id"].to_numpy(),
         "risk": rows["risk"].to_numpy().round(4),
         "rank": rows["rank"].to_numpy(),
+        "active_chains": rows["n_active_chains_here"].to_numpy().astype(int),
     })
     out["name"] = out["district_id"].map(STATE.district_name)
     out["state"] = out["district_id"].map(STATE.district_state)
@@ -92,6 +110,9 @@ def heatmap(window: str = Query("current", description="'current', an ISO timest
         out = out[out["state"].str.lower() == state.lower()]
         if out.empty:
             raise HTTPException(404, f"no districts in state '{state}'")
+    if fraud_category:
+        keep = STATE.districts_with_category(w, fraud_category)
+        out = out[out["district_id"].isin(keep)]
     out = out[out["risk"] >= min_risk].sort_values("rank")
     return {
         **_window_meta(w),

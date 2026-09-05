@@ -37,6 +37,7 @@ model/*.joblib
 dashboard/node_modules/
 dashboard/dist/
 dashboard/.vite/
+dashboard/shots/
 
 # OS / editor
 .DS_Store

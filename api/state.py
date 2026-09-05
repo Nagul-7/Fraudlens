@@ -160,6 +160,19 @@ class AppState:
         """Precompute the expensive contributions for a window."""
         self.contributions(window_idx)
 
+    def districts_with_category(self, window_idx, category):
+        """District ids currently holding money from a chain of this fraud type.
+
+        The model itself is not per-category (risk is one number), so the
+        category filter narrows WHICH districts are shown rather than changing
+        any score. That keeps the filter honest.
+        """
+        held = self.active_holdings(window_idx)
+        if held.empty:
+            return set()
+        cats = self.complaints["fraud_category"]
+        return set(held.loc[held["complaint_id"].map(cats) == category, "district_id"].unique())
+
     def active_holdings(self, window_idx, district_id=None):
         """Chains whose money sits in a district at this window's start."""
         t = window_idx * FC.WINDOW_HOURS

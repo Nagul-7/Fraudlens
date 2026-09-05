@@ -14,6 +14,7 @@ Work in progress, built phase by phase per `PLAN.md`.
 - Phase 2 - feature pipeline with leakage test: done (see `docs/phase2_notes.md`)
 - Phase 3 - LightGBM model + evaluation: done (see `docs/phase3_notes.md`, `docs/metrics.md`)
 - Phase 4 - prediction API: done (see `docs/phase4_notes.md`)
+- Phase 5 - risk heatmap dashboard: done (see `docs/phase5_notes.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -97,7 +98,17 @@ The demo clock starts at the first window of the held-out test period, and the
 API returns HTTP 400 for any earlier window, so every score it serves is a
 genuine out-of-sample prediction.
 
-Later phases will add the dashboard.
+Then run the dashboard (needs Node 20):
+
+```bash
+export PATH=$HOME/.local/opt/node20/bin:$PATH
+cd dashboard && npm install && npm run dev    # http://localhost:5173
+```
+
+![FraudLens dashboard](docs/dashboard_district.png)
+
+Advancing the clock scores the next 6-hour window and grades the one that just
+closed against ground truth, so the demo verifies itself as it runs.
 
 ## Data sources
 
