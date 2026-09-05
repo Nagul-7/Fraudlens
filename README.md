@@ -12,6 +12,7 @@ Work in progress, built phase by phase per `PLAN.md`.
 - Phase 0 - project setup: done
 - Phase 1 - synthetic data engine: done (see `docs/phase1_notes.md`)
 - Phase 2 - feature pipeline with leakage test: done (see `docs/phase2_notes.md`)
+- Phase 3 - LightGBM model + evaluation: done (see `docs/phase3_notes.md`, `docs/metrics.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -72,7 +73,20 @@ python -m features.build          # ~10 s -> data/train_table.parquet
 python -m features.test_leakage   # brute-force check, must print LEAKAGE TEST PASSED
 ```
 
-Later phases will add training and serving commands here.
+Train and evaluate (temporal split, months 1-10 train / 11-12 test):
+
+```bash
+python -m model.train      # ~60 s -> model/model.txt + calibrator
+python -m model.evaluate   # -> docs/metrics.md, feature_importance.png, drift_hitrate.png
+```
+
+Headline on the synthetic test months: watching the 25 riskiest districts each
+6-hour window catches **55.8%** of districts that actually had a fraud cash-out,
+against 52.2% for a trailing-7-day-heat baseline and 27.7% for a static hotspot
+list (perfect ranking would give 73.1%). Full numbers and caveats in
+`docs/metrics.md`.
+
+Later phases will add the API and dashboard commands here.
 
 ## Data sources
 
