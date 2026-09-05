@@ -22,6 +22,7 @@ import pandas as pd
 
 from datagen import config as C
 from datagen import geo
+from datagen import population
 
 MIN_PER_DAY = 24 * 60
 
@@ -54,17 +55,9 @@ def weekday_of(day):
 # Static world: districts, ATMs, accounts, holidays
 # ---------------------------------------------------------------------------
 def build_districts(rng):
-    """districts table + neighbours from the real GeoJSON."""
+    """districts table + neighbours from the real GeoJSON, with real population."""
     districts = geo.clean_geojson()
-
-    # Synthetic population proxy: log-normal around 1, times metro boost.
-    weight = rng.lognormal(mean=0.0, sigma=C.POPULATION_SIGMA, size=len(districts))
-    for (state, name), boost in C.METRO_BOOST.items():
-        mask = (districts["state"] == state) & (districts["name"] == name)
-        if not mask.any():
-            print(f"  warning: metro {state}/{name} not found in GeoJSON")
-        weight[mask.to_numpy()] *= boost
-    districts["population_weight"] = weight / weight.mean()
+    districts, _ = population.attach_population(districts)
 
     # Flag the initial hotspots.
     districts["is_hotspot"] = 0
@@ -76,7 +69,7 @@ def build_districts(rng):
 
     neighbors = geo.nearest_neighbors(districts)
     cols = ["district_id", "name", "state", "census_code", "lat", "lon",
-            "is_hotspot", "population_weight"]
+            "is_hotspot", "population", "population_weight", "population_source"]
     return districts[cols], neighbors
 
 
@@ -160,9 +153,11 @@ def build_hotspot_timeline(rng, districts, neighbor_lists):
     neighbour of an existing hotspot (corridor spreading) or a random district.
     Returns (list_of_active_arrays_per_day, hotspot_history DataFrame).
     """
-    # brand-new corridors appear where there are people and ATMs, so random
-    # replacements are weighted by population SQUARED (strong metro preference)
-    pop_p = districts["population_weight"].to_numpy() ** 2
+    # brand-new corridors appear where there are people and bank branches, so
+    # random replacements are weighted by population ^ HOTSPOT_POP_EXPONENT.
+    # With real census population this is what stops a remote district from
+    # being drawn as a mule corridor.
+    pop_p = districts["population_weight"].to_numpy() ** C.HOTSPOT_POP_EXPONENT
     pop_p = pop_p / pop_p.sum()
     active = set(int(d) for d in districts.loc[districts["is_hotspot"] == 1, "district_id"])
     history = {d: [0, None] for d in active}  # district -> [start_day, end_day]

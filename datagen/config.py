@@ -58,17 +58,17 @@ INITIAL_HOTSPOTS = [
 # ---------------------------------------------------------------------------
 # Districts, ATMs, accounts (static world)
 # ---------------------------------------------------------------------------
-# The GeoJSON has no population, so population_weight is a synthetic proxy:
-# a log-normal draw (most districts ~1, a few much bigger) times a metro boost.
-POPULATION_SIGMA = 0.5   # spread of the log-normal population proxy
-METRO_BOOST = {          # big cities have more people, victims, ATMs and mules
-    ("Delhi", "Delhi"): 6.0, ("Maharashtra", "Mumbai"): 5.0,
-    ("Maharashtra", "Thane"): 2.5, ("Karnataka", "Bengaluru Urban"): 4.0,
-    ("Tamil Nadu", "Chennai"): 3.0, ("Telangana", "Hyderabad"): 3.0,
-    ("West Bengal", "Kolkata"): 3.0, ("Maharashtra", "Pune"): 3.0,
-    ("Gujarat", "Ahmedabad"): 2.5, ("Rajasthan", "Jaipur"): 2.0,
-    ("Uttar Pradesh", "Lucknow"): 2.0, ("Gujarat", "Surat"): 2.0,
-}
+# Population comes from the real Census 2011, joined by district name in
+# datagen/population.py. `population_weight` is that population normalised to
+# mean 1.0 across districts, and it drives victims, mules, ATMs and the
+# background (non-corridor) cash-out rate.
+# (Until Phase 4 this was a random log-normal proxy, which occasionally made a
+# remote district like Kargil look bigger than a metro and let it be drawn as a
+# hotspot. Real population removes that whole class of nonsense.)
+HOTSPOT_POP_EXPONENT = 2.0   # when a burned hotspot is replaced by a random
+                             # district, draw with probability ~ population^this.
+                             # Squaring keeps new corridors in populous districts:
+                             # mule recruitment needs people and bank branches.
 
 N_NEIGHBORS = 5          # a district's "neighbours" = 5 nearest centroids
                          # (simple stand-in for true shared borders)

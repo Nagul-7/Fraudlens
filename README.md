@@ -82,9 +82,9 @@ python -m model.evaluate   # -> docs/metrics.md, feature_importance.png, drift_h
 ```
 
 Headline on the synthetic test months: watching the 25 riskiest districts each
-6-hour window catches **55.8%** of districts that actually had a fraud cash-out,
-against 52.2% for a trailing-7-day-heat baseline and 27.7% for a static hotspot
-list (perfect ranking would give 73.1%). Full numbers and caveats in
+6-hour window catches **56.7%** of districts that actually had a fraud cash-out,
+against 53.7% for a trailing-7-day-heat baseline and 21.6% for a static hotspot
+list (perfect ranking would give 73.4%). Full numbers and caveats in
 `docs/metrics.md`.
 
 Serve the predictions:
@@ -106,6 +106,10 @@ Later phases will add the dashboard.
   (Census-2011 codes, later district splits included). Downloaded once by
   `datagen/geo.py`; a cleaned copy with our `district_id` is committed at
   `data/india_districts.geojson`.
+- District population: real **Census 2011** figures, joined by district name in
+  `datagen/population.py` (exact, alias and fuzzy passes; districts created
+  after 2011 get a share of their state's total). National total reconciles to
+  121.1 crore.
 - Everything else (accounts, complaints, transactions, withdrawals) is
   generated. No real personal or transaction data is used anywhere.
 

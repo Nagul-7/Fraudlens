@@ -81,6 +81,6 @@
     "cmp_local_7d",
     "cmp_nb_7d"
   ],
-  "best_iteration": 326,
-  "ablation_best_iteration": 287
+  "best_iteration": 318,
+  "ablation_best_iteration": 137
 }

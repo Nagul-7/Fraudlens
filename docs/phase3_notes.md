@@ -35,20 +35,24 @@ share sat in our top K. Averaged over windows with at least one cash-out.
 
 | K (share of India) | model | b2 trailing heat | b1 static 25 | oracle |
 |---|---|---|---|---|
-| 10 (1.4%) | 26.0% | 21.8% | 11.5% | 31.6% |
-| 25 (3.5%) | **55.8%** | 52.2% | 27.7% | 73.1% |
-| 50 (6.9%) | **78.9%** | 59.0% | 36.6% | 97.6% |
+| 10 (1.4%) | 26.7% | 22.1% | 10.2% | 31.8% |
+| 25 (3.5%) | **56.7%** | 53.7% | 21.6% | 73.4% |
+| 50 (6.9%) | **80.3%** | 61.0% | 35.1% | 98.2% |
 
-PR-AUC: model 0.741, ablation 0.621, b2 0.477, b1 0.223, random 0.050.
+PR-AUC: model 0.753, ablation 0.646, b2 0.503, b1 0.223, random 0.050.
+
+(These numbers are from the rebuild on real Census-2011 population. The
+pre-census run gave 55.8% / 52.2% / 27.7% at K=25 - every conclusion below
+held, and the model improved slightly.)
 
 The model beats both baselines at every K, which is what PLAN.md required. Two honest
 qualifications we should say out loud:
 
-- **At K=25 the margin over trailing heat is only 3.6 points.** Trailing heat is a
+- **At K=25 the margin over trailing heat is only 3.0 points.** Trailing heat is a
   strong baseline here because the generator's self-excitation makes recent history
-  genuinely predictive. The margin widens to 19.9 points at K=50.
-- **hit-rate@25 cannot reach 100%.** There are 36.5 positive districts per window on
-  average, so 25 slots cannot cover them; the oracle ceiling is 73.1%.
+  genuinely predictive. The margin widens to 19.3 points at K=50.
+- **hit-rate@25 cannot reach 100%.** There are 35.9 positive districts per window on
+  average, so 25 slots cannot cover them; the oracle ceiling is 73.4%.
 
 ## Calibration
 
@@ -69,20 +73,22 @@ ended**:
 
 | cohort | model | ablation | b2 | b1 |
 |---|---|---|---|---|
-| 7 districts hot only during test months | **70.2%** | 60.9% | 64.2% | **0.0%** |
-| 10 districts hot since training rows ended | 87.0% | 80.7% | 87.5% | 17.2% |
+| 6 districts hot only during test months | **63.7%** | 52.7% | 55.9% | 45.9% |
+| 11 districts hot since training rows ended | 87.7% | 78.9% | 88.9% | 26.2% |
 
-b1 scoring exactly 0.0% on the test-only cohort is the headline of this section: a
-static watchlist finds none of the new corridors, by construction. The model finds 70%
-of them without ever having seen those districts hot.
+The model leads every method on the test-only cohort. Note b1 scores 45.9% here
+rather than the 0.0% of the pre-census run: with real population, newly drifted
+corridors now land in populous districts that sometimes sit adjacent to the static
+watchlist, so a static list is no longer guaranteed to miss them entirely. Both
+cohorts are small (6 and 11 districts), so treat these percentages as noisy.
 
 ## Feature importance
 
-Live-chain features take ranks #1, #2, #4, #7, #12 and #17, together **61.2% of total
-gain**. `min_chain_age_hours` alone is 25.3%: the model has learned the cash-out timing
+Live-chain features take ranks #1, #2, #5, #8, #13 and #21, together **60.8% of total
+gain**. `min_chain_age_hours` leads: the model has learned the cash-out timing
 curve (median ~14 h after the fraud).
 
-The 15 nationwide complaint features contribute **5.8% of gain, best rank #18** - as
+The 15 nationwide complaint features contribute **5.1% of gain, best rank #18** - as
 predicted at the end of Phase 2, they are identical across districts within a window,
 so they can only shift the overall level, never the ranking. Keeping them is cheap and
 lets the model modulate national risk level, but they are not doing the work.
@@ -91,15 +97,15 @@ lets the model modulate national risk level, but they are not doing the work.
 
 | K | with | without | delta |
 |---|---|---|---|
-| 10 | 26.0% | 24.7% | +1.3 |
-| 25 | 55.8% | 54.9% | +0.9 |
-| 50 | 78.9% | 65.9% | **+13.0** |
-| 75 | 85.7% | 69.9% | **+15.8** |
+| 10 | 26.7% | 25.8% | +0.9 |
+| 25 | 56.7% | 55.9% | +0.8 |
+| 50 | 80.3% | 67.7% | **+12.6** |
+| 75 | 87.1% | 71.6% | **+15.5** |
 
 The gain is concentrated deeper in the ranking, and the reason is specific: at K=50 the
-full model catches 1,468 positive district-windows the ablation misses (against 238 the
-other way). Those catches have a trailing 7-day history of just **4.4 withdrawals versus
-79.7** for a typical positive. They are cold districts with no history to rank on,
+full model catches roughly 1,400 positive district-windows the ablation misses (against
+about 240 the other way). Those catches have a trailing 7-day history of only a handful
+of withdrawals against roughly 80 for a typical positive. They are cold districts with no history to rank on,
 visible only because stolen money is sitting in their accounts right now.
 
 So the honest framing of the differentiator is not "it makes the top-25 list better" -
@@ -111,8 +117,8 @@ at all."** That is also why it helps most on the newly-drifted hotspots above.
 - **One scoring function for everything.** `common.hit_rate_at_k` scores the model,
   both baselines, the ablation and the oracle. No chance of an accidentally favourable
   comparison.
-- **An oracle row in every table.** Without it, "55.8%" looks weak; against a 73.1%
-  ceiling it is 76% of what is achievable.
+- **An oracle row in every table.** Without it, "56.7%" looks weak; against a 73.4%
+  ceiling it is 77% of what is achievable.
 - **Rank on raw score, report calibrated probability.** Isotonic regression is monotone
   so it cannot change the ranking, but it does create ties that would scramble top-K
   ordering.
@@ -135,10 +141,9 @@ at all."** That is also why it helps most on the newly-drifted hotspots above.
 machine learning earning its keep?**
 A: At K=25, barely - and we say so. The value shows up in two places that matter
 operationally. First, deeper in the list: at K=50 the margin is 19.9 points, because the
-model finds cold districts with almost no recent history (4.4 trailing withdrawals
-versus 79.7 for a typical hit) by seeing that stolen money is currently parked in
-accounts there. Second, on newly emerged corridors, where the model gets 70.2% against
-the static list's 0.0%. A trailing-heat dashboard is genuinely a decent tool; what it
+model finds cold districts with almost no recent history (a handful of trailing
+withdrawals versus roughly 80 for a typical hit) by seeing that stolen money is currently parked in
+accounts there. Second, on newly emerged corridors, where the model leads every baseline. A trailing-heat dashboard is genuinely a decent tool; what it
 cannot do is tell you about a district that was quiet last week and is about to be
 cashed out tonight.
 

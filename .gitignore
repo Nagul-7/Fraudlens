@@ -20,6 +20,8 @@ data/*.csv
 # 4 MB raw download; the cleaned <1 MB copy is committed instead
 data/india_districts_raw.geojson
 !data/.gitkeep
+# small committed inputs so a fresh clone regenerates offline
+!data/census2011_districts.csv
 
 # Model artifacts
 model/*.txt

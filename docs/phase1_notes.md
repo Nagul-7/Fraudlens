@@ -7,7 +7,7 @@
 
 | table                | rows      | what it is |
 |----------------------|-----------|------------|
-| `districts`          | 724       | real districts from a public GeoJSON: id, name, state, centroid lat/lon, `is_hotspot` (the initial 25), synthetic `population_weight` |
+| `districts`          | 724       | real districts from a public GeoJSON: id, name, state, centroid lat/lon, `is_hotspot` (the initial 25), real Census-2011 `population` + normalised `population_weight` |
 | `district_neighbors` | 3,620     | 5 nearest districts by centroid distance (stand-in for shared borders) |
 | `atms`               | 4,438     | ATMs scattered around each centroid, count ~ population, bank name |
 | `accounts`           | 71,896    | victim / clean / mule accounts; mules concentrate in hotspots and mostly have rented/forged KYC |
@@ -58,9 +58,11 @@ Files:
 
 - **One seed, one `numpy` Generator passed everywhere.** Same config = same DB,
   byte for byte. Judges can re-run and get identical metrics.
-- **Real districts, synthetic population.** The GeoJSON has no population, so
-  `population_weight` is a log-normal proxy with a boost for known metros. Swapping
-  in Census population is a one-column change.
+- **Real districts, real population.** District boundaries come from a public
+  GeoJSON and population from Census 2011, joined by name in
+  `datagen/population.py` (see below). `population_weight` is that population
+  normalised to mean 1.0, and it drives victims, mules, ATMs and background
+  cash-outs.
 - **Neighbours = 5 nearest centroids** instead of true shared borders. Avoids a
   geometry library and is easy to explain; good enough for spillover effects.
 - **Time is "minutes since day 0" (a float)** inside the simulator and converted
@@ -101,10 +103,38 @@ python -m datagen.validate    # prints checks, writes docs/plot_*.png
 
 To change the world, edit `datagen/config.py` and re-run both.
 
+## Population join (added after Phase 4)
+
+Population originally came from a random log-normal draw, which occasionally
+handed a remote district a bigger weight than a metro and let it be drawn as a
+mule corridor - Kargil (real population 140k) was once the top alert in the API.
+That is now fixed. `datagen/population.py` joins real Census-2011 district
+populations by name, in four passes:
+
+| pass | districts | what it does |
+|---|---|---|
+| exact | 539 | normalised name matches within the state |
+| fuzzy | 31 | `difflib` above a 0.86 similarity cutoff, e.g. `mahbubnagar` |
+| alias | 21 | known renames: Gurugram/Gurgaon, Prayagraj/Allahabad, Nuh/Mewat |
+| whole-state sum | 3 | our map holds Delhi, Chandigarh, Lakshadweep as one district; the census splits them, so we sum |
+| state median | 130 | no census row exists - these districts were created after 2011 |
+
+Two extra rules make the totals honest. States that did not exist in 2011
+(Telangana, Ladakh) search their parent state's rows. And because our map has
+724 districts against the census's 640, each state is rescaled so its districts
+sum to that state's real census total - otherwise post-2011 districts would add
+population the parent already counted. The national total comes out at **121.1
+crore, matching Census 2011 exactly**.
+
+Result: the largest districts are now Delhi (16.8M), Thane (11.8M), Bengaluru
+Urban (10.9M), Pune (10.0M); the smallest are Anjaw (13k) and Tawang (31k). No
+district under 300k population is ever selected as a hotspot, against a
+pre-fix minimum of 133k.
+
 ## Known simplifications
 
-- Population is a random proxy, so an occasional remote district gets a larger
-  weight than it deserves (visible as a green "drifted-in" bubble in Ladakh).
+- 130 districts created after 2011 have no census row and receive a share of
+  their state's population rather than a measured value.
 - Chain depth is uniform 3-7 by construction; real depth distributions are skewed.
 - Every complaint is a separate chain; real gangs reuse mule accounts across
   many victims (a Phase 2+ graph-feature enhancement if time allows).
