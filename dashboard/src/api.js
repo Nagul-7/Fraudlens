@@ -38,3 +38,14 @@ export const getAlerts = (params) => request(`/alerts${qs(params)}`)
 export const getDistrict = (id, params) => request(`/districts/${id}${qs(params)}`)
 export const advance = (params) => request(`/simulate/advance${qs(params)}`, { method: 'POST' })
 export const resetClock = () => request('/simulate/reset', { method: 'POST' })
+
+// Phase 6
+export const getRoles = () => request('/roles')
+export const getFeed = (params) => request(`/feed${qs(params)}`)
+export const setAlertStatus = (id, status) =>
+  request(`/feed/${id}/status${qs({ status })}`, { method: 'POST' })
+export const dispatchAlert = (id, channel) =>
+  request(`/feed/${id}/dispatch${qs({ channel })}`, { method: 'POST' })
+export const getReport = (id) => request(`/feed/${id}/report`)
+export const getCrossJurisdiction = (params) => request(`/cross-jurisdiction${qs(params)}`)
+export const getBankExposure = (params) => request(`/bank/exposure${qs(params)}`)

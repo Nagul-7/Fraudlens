@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 
 from datagen import config as DC
 from features import config as FC
+from api import alerts as A
 from api import reasons as R
 from api.state import STATE
 
@@ -245,6 +246,179 @@ def district_detail(district_id: int, window: str = Query("current"), history_da
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase 6: roles, alert feed, dispatch, intelligence report
+# ---------------------------------------------------------------------------
+def _check_role(role, state_name, bank):
+    role = (role or "I4C").upper()
+    if role not in A.ROLES:
+        raise HTTPException(400, f"unknown role '{role}'; expected one of {A.ROLES}")
+    if role == "STATE" and not state_name:
+        raise HTTPException(400, "role STATE requires a `state_name` (the jurisdiction)")
+    if role == "BANK" and not bank:
+        raise HTTPException(400, "role BANK requires a `bank`")
+    if state_name and state_name not in set(STATE.districts["state"]):
+        raise HTTPException(404, f"unknown state '{state_name}'")
+    if bank and bank not in STATE.banks:
+        raise HTTPException(404, f"unknown bank '{bank}'")
+    return role
+
+
+@app.get("/roles")
+def roles():
+    """The mock roles a demo can switch between, and why the split exists."""
+    return {
+        "roles": [
+            {"id": "I4C", "label": "I4C Admin",
+             "scope": "All 724 districts, all alerts, national statistics."},
+            {"id": "STATE", "label": "State LEA",
+             "scope": "Own state's districts and alerts only, plus a "
+                      "cross-jurisdiction referral inbox.",
+             "options": sorted(STATE.districts["state"].unique().tolist())},
+            {"id": "BANK", "label": "Bank / FI",
+             "scope": "Own ATMs and own accounts only. No crime intelligence.",
+             "options": STATE.banks},
+        ],
+        "segregation_note": A.SEGREGATION_NOTE,
+    }
+
+
+@app.get("/feed")
+def feed(role: str = Query("I4C"), state_name: str | None = Query(None),
+         bank: str | None = Query(None), status: str | None = Query(None),
+         limit: int = Query(200, ge=1, le=1000)):
+    """The notification feed, scoped to the role. Newest first."""
+    role = _check_role(role, state_name, bank)
+    items = A.STORE.visible(role, state_name)
+    if status:
+        if status not in A.STATUSES:
+            raise HTTPException(400, f"unknown status '{status}'")
+        items = [a for a in items if a.status == status]
+    items = sorted(items, key=lambda a: a.alert_id, reverse=True)[:limit]
+    return {
+        "role": role, "state_name": state_name, "bank": bank,
+        "counts": A.STORE.counts(role, state_name),
+        "alerts": [a.to_dict() for a in items],
+        "note": ("Alerts are crime intelligence and are not exposed to bank roles."
+                 if role == "BANK" else None),
+    }
+
+
+@app.post("/feed/{alert_id}/status")
+def set_alert_status(alert_id: int, status: str = Query(...)):
+    """Acknowledge or dismiss an alert."""
+    if status not in A.STATUSES:
+        raise HTTPException(400, f"status must be one of {A.STATUSES}")
+    alert = A.STORE.get(alert_id)
+    if not alert:
+        raise HTTPException(404, f"alert {alert_id} not found")
+    alert.status = status
+    return alert.to_dict()
+
+
+@app.post("/feed/{alert_id}/dispatch")
+def dispatch_alert(alert_id: int, channel: str = Query("sms")):
+    """Mock SMS/email dispatch: build the exact message an officer would get,
+    log it, and return it. Nothing is actually sent anywhere."""
+    alert = A.STORE.get(alert_id)
+    if not alert:
+        raise HTTPException(404, f"alert {alert_id} not found")
+    if channel not in ("sms", "email"):
+        raise HTTPException(400, "channel must be 'sms' or 'email'")
+    atms = STATE.atms_by_district.get(alert.district_id)
+    banks = atms["bank"].value_counts().head(3).index.tolist() if atms is not None else []
+    if channel == "sms":
+        to = f"SP Cyber Crime, {alert.district} (+91-XXXXX-XXXXX)"
+        body = A.sms_for_alert(alert)
+    else:
+        to = f"sp-cyber.{alert.district.lower().replace(' ', '')}@{alert.state.lower().replace(' ', '')}.gov.in"
+        body = A.email_for_alert(alert, int(STATE.n_atms.get(alert.district_id, 0)), banks)
+    record = {"channel": channel, "to": to, "body": body,
+              "sent_at": pd.Timestamp.now().isoformat(timespec="seconds"),
+              "delivered": False, "note": "MOCK - logged only, nothing transmitted"}
+    alert.dispatched.append(record)
+    print(f"[dispatch:{channel}] -> {to}\n{body}\n")
+    return record
+
+
+@app.get("/feed/{alert_id}/report")
+def intelligence_report(alert_id: int):
+    """Everything the printable Intelligence Report needs, in one call."""
+    alert = A.STORE.get(alert_id)
+    if not alert:
+        raise HTTPException(404, f"alert {alert_id} not found")
+    w, d = alert.window_idx, alert.district_id
+
+    held = STATE.active_holdings(w, d)
+    chains = []
+    if not held.empty:
+        g = (held.groupby("complaint_id")
+                 .agg(amount_held=("amount", "sum"), age_hours=("age_hours", "min"),
+                      hop=("hop_number", "max"), n_accounts=("account_id", "nunique"))
+                 .sort_values("amount_held", ascending=False).head(25).reset_index())
+        for c in g.itertuples():
+            cm = STATE.complaints.loc[c.complaint_id]
+            chains.append({
+                "complaint_id": int(c.complaint_id),
+                "fraud_category": cm["fraud_category"],
+                "original_amount": float(cm["amount"]),
+                "amount_held": float(c.amount_held),
+                "amount_held_display": R.rupees(c.amount_held),
+                "age_hours": round(float(c.age_hours), 1),
+                "hop": int(c.hop), "n_accounts": int(c.n_accounts),
+                "victim_district": STATE.district_name[int(cm["victim_district"])],
+                "victim_state": STATE.district_state[int(cm["victim_district"])],
+            })
+
+    atms = STATE.atms_by_district.get(d)
+    atm_list = ([] if atms is None else
+                [{"atm_id": int(r.atm_id), "bank": r.bank,
+                  "lat": round(float(r.lat), 4), "lon": round(float(r.lon), 4)}
+                 for r in atms.head(20).itertuples()])
+    return {
+        "alert": alert.to_dict(),
+        "reference": f"ALERT-{alert.alert_id:05d}",
+        "generated_at": pd.Timestamp.now().isoformat(timespec="seconds"),
+        "model_version": "FraudLens v0.1 - LightGBM, isotonic-calibrated "
+                         f"({len(STATE.features)} features)",
+        "active_chains": chains,
+        "atms": atm_list,
+        "atm_count": int(STATE.n_atms.get(d, 0)),
+        "data_notice": "SYNTHETIC DATA - generated for demonstration (SIH26184). "
+                       "Not derived from real complaints, accounts or transactions.",
+    }
+
+
+@app.get("/cross-jurisdiction")
+def cross_jurisdiction(state_name: str = Query(..., description="the requesting state"),
+                       window: str = Query("current"), limit: int = Query(60, ge=1, le=200)):
+    """Money from complaints filed in this state that is now in flight toward a
+    district in a DIFFERENT state - the coordination gap the project targets."""
+    w = _resolve(window)
+    if state_name not in set(STATE.districts["state"]):
+        raise HTTPException(404, f"unknown state '{state_name}'")
+    items = A.cross_jurisdiction(STATE, w, state_name, limit)
+    return {
+        **_window_meta(w), "state_name": state_name,
+        "n_referrals": len(items),
+        "total_amount": sum(i["amount_held"] for i in items),
+        "total_amount_display": R.rupees(sum(i["amount_held"] for i in items)),
+        "referrals": items,
+    }
+
+
+@app.get("/bank/exposure")
+def bank_exposure(bank: str = Query(...), window: str = Query("current"),
+                  min_risk: float = Query(0.5, ge=0.0, le=1.0)):
+    """A bank's own exposure. No crime intelligence: no reason codes, no
+    complaint details, no district rankings."""
+    w = _resolve(window)
+    if bank not in STATE.banks:
+        raise HTTPException(404, f"unknown bank '{bank}'")
+    return {**_window_meta(w), **A.bank_exposure(STATE, w, bank, min_risk),
+            "segregation_note": A.SEGREGATION_NOTE}
+
+
 @app.get("/simulate/state")
 def simulate_state():
     """Where the demo clock is, and how far it can still run."""
@@ -271,6 +445,8 @@ def simulate_advance(steps: int = Query(1, ge=1, le=40),
     previous = STATE.clock
     STATE.clock = min(STATE.clock + steps, STATE.last_window)
     STATE.warm(STATE.clock)          # absorb the SHAP cost here, not in /alerts
+    # districts crossing the threshold in the NEW window become alert records
+    new_alerts = A.STORE.create_for_window(STATE, STATE.clock, threshold)
 
     prev_rows = STATE.window_rows(previous)
     flagged = prev_rows[prev_rows["risk"] >= threshold]
@@ -287,6 +463,7 @@ def simulate_advance(steps: int = Query(1, ge=1, le=40),
             "precision": round(hits / len(flagged), 4) if len(flagged) else None,
             "actual_withdrawal_districts": int((prev_rows["y_count"] > 0).sum()),
         },
+        "new_alerts": [a.to_dict() for a in new_alerts],
         "now": {
             "n_above_threshold": int((rows["risk"] >= threshold).sum()),
             "top_districts": [{"district_id": int(r.district_id),
@@ -302,4 +479,5 @@ def simulate_reset():
     """Put the clock back to the start of the test period."""
     STATE.clock = STATE.test_start_window
     STATE.warm(STATE.clock)
+    A.STORE.alerts.clear()
     return {"clock": _window_meta(STATE.clock)}

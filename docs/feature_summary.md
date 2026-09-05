@@ -4,7 +4,7 @@
 - columns: **47** (42 features + 2 labels + 3 keys)
 - positive rate (y=1): **4.94%**; mean withdrawals per positive window: 5.43
 - holdings: 1,447,125 transfers -> 2,208,267 (holding, window) rows
-- build time: **8.1 s**
+- build time: **8.3 s**
 
 | feature | mean | std | min | max | mean when y=1 | mean when y=0 | lift |
 |---|---|---|---|---|---|---|---|

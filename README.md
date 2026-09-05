@@ -15,6 +15,7 @@ Work in progress, built phase by phase per `PLAN.md`.
 - Phase 3 - LightGBM model + evaluation: done (see `docs/phase3_notes.md`, `docs/metrics.md`)
 - Phase 4 - prediction API: done (see `docs/phase4_notes.md`)
 - Phase 5 - risk heatmap dashboard: done (see `docs/phase5_notes.md`)
+- Phase 6 - alerts, role-based views, intelligence report: done (see `docs/phase6_notes.md`)
 
 ## Important: this is a synthetic-data prototype
 
@@ -108,7 +109,15 @@ cd dashboard && npm install && npm run dev    # http://localhost:5173
 ![FraudLens dashboard](docs/dashboard_district.png)
 
 Advancing the clock scores the next 6-hour window and grades the one that just
-closed against ground truth, so the demo verifies itself as it runs.
+closed against ground truth, so the demo verifies itself as it runs. It also
+raises alerts, which can be acknowledged, dispatched as a mock SMS or email, and
+opened as a printable Intelligence Report
+(`docs/sample_intelligence_report.pdf`).
+
+Three mock roles show real server-side data segregation: I4C Admin sees all of
+India, a State LEA sees only its own jurisdiction plus a cross-jurisdiction
+referral inbox, and a Bank sees only its own ATMs and accounts with no crime
+intelligence at all.
 
 ## Data sources
 

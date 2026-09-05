@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react'
+import RoleSwitcher from './RoleSwitcher.jsx'
 import { fmtWindow, pct } from '../risk.js'
 
 // The demo centrepiece. Each advance grades the window that just closed
 // against ground truth, and that result flashes when it updates.
-export default function TopBar({ clock, grade, onAdvance, onReset, advancing, remaining }) {
+export default function TopBar({ clock, grade, onAdvance, onReset, advancing, remaining,
+                                 role, roles, setRole, segNote, unread, feedAvailable, onToggleFeed }) {
   const [flash, setFlash] = useState(false)
   useEffect(() => {
     if (!grade) return
@@ -37,6 +39,10 @@ export default function TopBar({ clock, grade, onAdvance, onReset, advancing, re
         </div>
       </div>
 
+      {roles?.length > 0 && (
+        <RoleSwitcher roles={roles} role={role} setRole={setRole} note={segNote} />
+      )}
+
       <div className={`grade ${flash ? 'flash' : ''}`}>
         {!grade ? (
           <div className="grade-empty">
@@ -64,6 +70,14 @@ export default function TopBar({ clock, grade, onAdvance, onReset, advancing, re
           </>
         )}
       </div>
+
+      <button className="bell" onClick={onToggleFeed}
+              title={feedAvailable ? 'Alert feed' : 'Alerts are not available to bank roles'}>
+        <span className="bell-icon">&#9788;</span>
+        <span className="bell-label">Alerts</span>
+        {feedAvailable && unread > 0 && <span className="bell-badge mono">{unread}</span>}
+        {!feedAvailable && <span className="bell-lock">restricted</span>}
+      </button>
     </div>
   )
 }

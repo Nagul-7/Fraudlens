@@ -70,6 +70,7 @@ class AppState:
         self.district_name = self.districts.set_index("district_id")["name"].to_dict()
         self.district_state = self.districts.set_index("district_id")["state"].to_dict()
         self._load_atms()
+        self._load_accounts_bank()
         self._load_holdings()
 
         # index for O(1) slicing by window
@@ -82,6 +83,14 @@ class AppState:
         self.loaded = True
         print(f"[api] ready. clock at window {self.clock} ({self.window_start(self.clock)}), "
               f"serving up to {self.window_start(self.last_window)}")
+
+    def _load_accounts_bank(self):
+        """account_id -> bank, for the Phase 6 bank-facing view."""
+        conn = sqlite3.connect(DC.DB_PATH)
+        acc = pd.read_sql("SELECT account_id, bank FROM accounts", conn)
+        conn.close()
+        self.account_bank = acc.set_index("account_id")["bank"]
+        self.banks = sorted(acc["bank"].unique().tolist())
 
     def _load_atms(self):
         conn = sqlite3.connect(DC.DB_PATH)

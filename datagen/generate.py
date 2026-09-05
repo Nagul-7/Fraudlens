@@ -93,7 +93,14 @@ def build_atms(rng, districts):
 
 
 def build_accounts(rng, districts):
-    """victim / clean / mule accounts. Mules concentrate in hotspots."""
+    """victim / clean / mule accounts. Mules concentrate in hotspots.
+
+    Each account also gets a bank. Real CFCFRMS feeds carry the holding bank,
+    and Phase 6's bank-facing view needs it to show an FI only its own
+    accounts. It is drawn from a SEPARATE RNG stream (SEED + 1) so adding it
+    does not disturb the main sequence - the rest of the world, and therefore
+    every Phase 3 metric, stays bit-identical.
+    """
     n_d = len(districts)
     pop_p = districts["population_weight"].to_numpy() / districts["population_weight"].sum()
     hotspot_ids = districts.loc[districts["is_hotspot"] == 1, "district_id"].to_numpy()
@@ -127,6 +134,9 @@ def build_accounts(rng, districts):
     }))
     accounts = pd.concat(frames, ignore_index=True)
     accounts.insert(0, "account_id", np.arange(len(accounts)))
+    bank_rng = np.random.default_rng(C.SEED + 1)      # independent stream
+    accounts["bank"] = bank_rng.choice(list(C.BANKS.keys()), size=len(accounts),
+                                       p=np.array(list(C.BANKS.values())) / sum(C.BANKS.values()))
     return accounts
 
 
