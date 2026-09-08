@@ -107,7 +107,7 @@ export default function FilterPanel({
         </div>
         <div className="stat-row">
           <span className="k">Highest risk</span>
-          <span className="v mono">{heatmap ? riskLabel(heatmap.risk_max, 1) : '--'}</span>
+          <span className="v mono">{heatmap ? riskLabel(heatmap.risk_max) : '--'}</span>
         </div>
         <div className="stat-row">
           <span className="k">Above threshold</span>

@@ -175,7 +175,7 @@ def email_for_alert(alert, atm_count, banks):
 # ---------------------------------------------------------------------------
 # Cross-jurisdiction: money leaving the state where the complaint was filed
 # ---------------------------------------------------------------------------
-def cross_jurisdiction(state, window_idx, origin_state, limit=60):
+def cross_jurisdiction(state, window_idx, origin_state, limit=60, fraud_category=None):
     """Chains whose complaint was filed in `origin_state` but whose money now
     sits in a district in a DIFFERENT state.
 
@@ -195,6 +195,8 @@ def cross_jurisdiction(state, window_idx, origin_state, limit=60):
     held["origin_state"] = held["victim_district"].map(state.district_state)
     held["dest_state"] = held["district_id"].map(state.district_state)
     out = held[(held["origin_state"] == origin_state) & (held["dest_state"] != origin_state)]
+    if fraud_category:                      # the dashboard's category filter
+        out = out[out["fraud_category"] == fraud_category]
     if out.empty:
         return []
     grouped = (out.groupby(["complaint_id", "victim_district", "district_id",
@@ -223,16 +225,27 @@ def cross_jurisdiction(state, window_idx, origin_state, limit=60):
 # ---------------------------------------------------------------------------
 # Bank view: only this institution's own exposure
 # ---------------------------------------------------------------------------
-def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40):
+def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40, state_name=None):
     """What one bank is allowed to see: its own ATMs in districts the model
     rates high risk, and its own accounts currently holding fraud money.
 
     Deliberately contains NO reason codes, no complaint details and no
     district ranking - a bank gets an operational instruction, not the
     intelligence behind it.
+
+    `state_name` narrows every part of the response - ATM exposure, accounts
+    holding funds, and the district footprint - to one state. It has to scope
+    all three together: filtering only the map while the account table stayed
+    national is how this went wrong the first time.
     """
+    in_scope = None
+    if state_name:
+        in_scope = {int(d) for d, st in state.district_state.items() if st == state_name}
+
     rows = state.window_rows(window_idx).set_index("district_id")
     risky = rows[rows["risk"] >= min_risk]
+    if in_scope is not None:
+        risky = risky[risky.index.isin(in_scope)]
 
     atm_rows = []
     for d in risky.index:
@@ -258,6 +271,8 @@ def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40):
     if not held.empty:
         held = held.assign(bank=held["account_id"].map(state.account_bank))
         mine = held[held["bank"] == bank]
+        if in_scope is not None:
+            mine = mine[mine["district_id"].isin(in_scope)]
         if not mine.empty:
             g = (mine.groupby(["account_id", "district_id"], as_index=False)
                      .agg(amount_held=("amount", "sum"), age_hours=("age_hours", "min"),
@@ -266,6 +281,7 @@ def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40):
             for r in g.itertuples():
                 account_rows.append({
                     "account_id": int(r.account_id),
+                    "district_id": int(r.district_id),
                     "district": state.district_name[int(r.district_id)],
                     "state": state.district_state[int(r.district_id)],
                     "amount_held": float(r.amount_held),
@@ -281,10 +297,20 @@ def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40):
     total = sum(a["amount_held"] for a in account_rows)
     # every district where this bank has an ATM - the only geography a bank
     # is entitled to see risk for
-    own_districts = sorted({int(d) for d, g in state.atms_by_district.items()
-                            if (g["bank"] == bank).any()})
+    # The bank's footprint is where it has ATMs OR is holding flagged funds.
+    # ATMs alone would leave the map blank in a state where the bank has an
+    # exposed account but no machines, which reads as "nothing here" when there
+    # is in fact something to act on.
+    own_districts = sorted(
+        {int(d) for d, g in state.atms_by_district.items()
+         if (g["bank"] == bank).any() and (in_scope is None or int(d) in in_scope)}
+        # by id, never by name: 5 district names are shared across states
+        # (Aurangabad, Balrampur, Bilaspur, Hamirpur, Pratapgarh)
+        | {a["district_id"] for a in account_rows}
+    )
     return {
         "bank": bank,
+        "state_name": state_name,
         "own_district_ids": own_districts,
         "atm_exposure": atm_rows[:limit],
         "accounts_holding": account_rows,

@@ -21,6 +21,7 @@ export default function App() {
   const [remaining, setRemaining] = useState(null)
 
   const [heatmap, setHeatmap] = useState(null)
+  const [allScores, setAllScores] = useState(null)   // unfiltered, for map tooltips
   const [heatmapError, setHeatmapError] = useState(null)
   const [grade, setGrade] = useState(null)
   const [advancing, setAdvancing] = useState(false)
@@ -71,6 +72,14 @@ export default function App() {
         fraud_category: filters.category,
       })
       setHeatmap(h)
+      // Filters dim districts but do not un-score them, so the tooltip is fed
+      // the full unfiltered set - otherwise hovering a dimmed district would
+      // read "no score" when it actually has one.
+      if (scopedState || filters.category) {
+        setAllScores(await api.getHeatmap({ window: clock.window_idx }))
+      } else {
+        setAllScores(h)
+      }
       setHeatmapError(null)
     } catch (e) {
       setHeatmapError(e.message)
@@ -103,15 +112,19 @@ export default function App() {
     if (!clock) return
     let cancelled = false
     if (role.id === 'STATE' && role.stateName) {
-      api.getCrossJurisdiction({ state_name: role.stateName, window: clock.window_idx })
+      // the category filter scopes the referral inbox too, not just the map
+      api.getCrossJurisdiction({ state_name: role.stateName, window: clock.window_idx,
+                                 fraud_category: filters.category })
         .then((d) => !cancelled && setXj(d)).catch(() => !cancelled && setXj(null))
     } else setXj(null)
     if (role.id === 'BANK' && role.bank) {
-      api.getBankExposure({ bank: role.bank, window: clock.window_idx })
+      // the state filter scopes ATMs, accounts and the district count together
+      api.getBankExposure({ bank: role.bank, window: clock.window_idx,
+                            state_name: filters.state })
         .then((d) => !cancelled && setBankData(d)).catch(() => !cancelled && setBankData(null))
     } else setBankData(null)
     return () => { cancelled = true }
-  }, [role.id, role.stateName, role.bank, clock])
+  }, [role.id, role.stateName, role.bank, clock, filters.state, filters.category])
 
   // Never carry another role's view across a switch.
   useEffect(() => {
@@ -179,11 +192,13 @@ export default function App() {
   }
 
   // ---- derived views -----------------------------------------------------
+  // Scores for the map: keyed by the same district_id the GeoJSON features
+  // carry, and built from the UNFILTERED set so every district resolves.
   const riskById = useMemo(() => {
     const m = new Map()
-    heatmap?.districts.forEach((d) => m.set(d.district_id, d.risk))
+    ;(allScores ?? heatmap)?.districts.forEach((d) => m.set(d.district_id, d.risk))
     return m
-  }, [heatmap])
+  }, [allScores, heatmap])
 
   const visibleIds = useMemo(() => {
     // A bank may only see risk for districts where it actually has ATMs;
@@ -248,6 +263,7 @@ export default function App() {
           />
           {role.id === 'STATE' && (
             <CrossJurisdiction data={xj} stateName={role.stateName}
+                               category={filters.category}
                                onSelectDistrict={setSelectedId} />
           )}
         </div>
@@ -259,7 +275,8 @@ export default function App() {
                   categoryActive={!!filters.category} />
           <div className="map-overlay map-hint">
             {role.id === 'BANK'
-              ? `Showing only districts where ${role.bank} operates ATMs`
+              ? `Showing only districts where ${role.bank} has ATMs or exposed accounts`
+                + (filters.state ? ` in ${filters.state}` : '')
               : 'Click any district for the full intelligence panel'}
           </div>
           <div className="map-overlay map-stats">
@@ -286,7 +303,7 @@ export default function App() {
                 </div>
                 <div className="stat-row">
                   <span className="k">Peak risk</span>
-                  <span className="v mono">{heatmap ? riskLabel(heatmap.risk_max, 1) : '--'}</span>
+                  <span className="v mono">{heatmap ? riskLabel(heatmap.risk_max) : '--'}</span>
                 </div>
                 <div className="stat-row">
                   <span className="k">Windows left</span>
@@ -299,7 +316,7 @@ export default function App() {
 
         {role.id === 'BANK'
           ? <BankPanel data={bankData} bank={role.bank} note={segNote}
-                       onSelectDistrict={setSelectedId} />
+                       stateFilter={filters.state} onSelectDistrict={setSelectedId} />
           : selectedId !== null && (
               <DistrictPanel detail={detail} loading={detailState.loading}
                              error={detailState.error} onClose={() => setSelectedId(null)} />

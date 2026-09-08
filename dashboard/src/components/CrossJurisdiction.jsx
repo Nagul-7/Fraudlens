@@ -5,7 +5,7 @@ import { riskColor, riskLabel } from '../risk.js'
 // into another state's districts. The origin state cannot act there, and the
 // destination state does not yet know the case exists. This panel is the
 // referral that closes that gap.
-export default function CrossJurisdiction({ data, stateName, onSelectDistrict }) {
+export default function CrossJurisdiction({ data, stateName, category, onSelectDistrict }) {
   if (!data) return null
   return (
     <div className="section">
@@ -24,8 +24,13 @@ export default function CrossJurisdiction({ data, stateName, onSelectDistrict })
         Money from complaints filed in {stateName} is now sitting in accounts in
         other states. {stateName} cannot act there; the destination state does not
         yet know the case exists. Each row is a referral to send.
+        {category && <> Filtered to <strong>{category}</strong> complaints.</>}
       </p>
-      {!data.referrals.length && <div className="empty">No outbound chains in this window.</div>}
+      {!data.referrals.length && (
+        <div className="empty">
+          No outbound chains{category ? ` of type ${category}` : ''} in this window.
+        </div>
+      )}
       {data.referrals.length > 0 && (
         <table className="tbl xj-table">
           <thead>

@@ -1,5 +1,5 @@
 import React from 'react'
-import { rupees } from '../risk.js'
+import { rupees, riskLabel } from '../risk.js'
 
 // Deliverable (c): a printable intelligence report. Deliberately laid out like
 // a filed document rather than a dashboard panel - reference number, evidence
@@ -46,7 +46,7 @@ export default function IntelligenceReport({ report, onClose }) {
                 <th>Prediction window</th><td colSpan={3} className="mono">{fmt(win)} to {fmt(winEnd)} IST (6 hours)</td>
               </tr>
               <tr>
-                <th>Risk score</th><td className="mono">{(a.risk * 100).toFixed(1)}% (calibrated)</td>
+                <th>Risk score</th><td className="mono">{riskLabel(a.risk)} (calibrated)</td>
                 <th>National rank</th><td className="mono">{a.rank} of 724 districts</td>
               </tr>
               <tr>

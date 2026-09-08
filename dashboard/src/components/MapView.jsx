@@ -19,6 +19,14 @@ function FitIndia({ geo }) {
 export default function MapView({ geo, riskById, visibleIds, selectedId, onSelect }) {
   const layerRef = useRef(null)
 
+  // The GeoJSON layer is created once (memoised on `geo`), so `onEachFeature`
+  // runs once too and any prop it closes over is frozen at first render - when
+  // the heatmap had not loaded and riskById was empty. That is why the tooltip
+  // used to read "risk --" forever. Keep the latest lookup in a ref so the
+  // tooltip callback reads current data instead of the mount-time snapshot.
+  const riskRef = useRef(riskById)
+  riskRef.current = riskById
+
   // Restyle in place when risk or filters change - far cheaper than remounting
   // the 724-polygon layer every window.
   useEffect(() => {
@@ -52,10 +60,11 @@ export default function MapView({ geo, riskById, visibleIds, selectedId, onSelec
       mouseout: (e) => e.target.setStyle(styleFor(feature)),
     })
     layer.bindTooltip(() => {
-      const risk = riskById.get(p.district_id)
+      // riskRef, not riskById: see the note above.
+      const risk = riskRef.current.get(p.district_id)
       return `<div class="tt-name">${p.name}</div>
               <div class="tt-state">${p.state}</div>
-              <div class="tt-risk">risk ${riskLabel(risk, 1)}</div>`
+              <div class="tt-risk">risk ${riskLabel(risk)}</div>`
     }, { className: 'district-tooltip', sticky: true })
   }
 

@@ -391,15 +391,18 @@ def intelligence_report(alert_id: int):
 
 @app.get("/cross-jurisdiction")
 def cross_jurisdiction(state_name: str = Query(..., description="the requesting state"),
-                       window: str = Query("current"), limit: int = Query(60, ge=1, le=200)):
+                       window: str = Query("current"),
+                       fraud_category: str | None = Query(None),
+                       limit: int = Query(60, ge=1, le=200)):
     """Money from complaints filed in this state that is now in flight toward a
     district in a DIFFERENT state - the coordination gap the project targets."""
     w = _resolve(window)
     if state_name not in set(STATE.districts["state"]):
         raise HTTPException(404, f"unknown state '{state_name}'")
-    items = A.cross_jurisdiction(STATE, w, state_name, limit)
+    items = A.cross_jurisdiction(STATE, w, state_name, limit, fraud_category)
     return {
         **_window_meta(w), "state_name": state_name,
+        "fraud_category": fraud_category,
         "n_referrals": len(items),
         "total_amount": sum(i["amount_held"] for i in items),
         "total_amount_display": R.rupees(sum(i["amount_held"] for i in items)),
@@ -409,13 +412,19 @@ def cross_jurisdiction(state_name: str = Query(..., description="the requesting 
 
 @app.get("/bank/exposure")
 def bank_exposure(bank: str = Query(...), window: str = Query("current"),
+                  state_name: str | None = Query(None, description="narrow to one state"),
                   min_risk: float = Query(0.5, ge=0.0, le=1.0)):
     """A bank's own exposure. No crime intelligence: no reason codes, no
-    complaint details, no district rankings."""
+    complaint details, no district rankings.
+
+    `state_name` scopes ATMs, accounts and the district footprint together."""
     w = _resolve(window)
     if bank not in STATE.banks:
         raise HTTPException(404, f"unknown bank '{bank}'")
-    return {**_window_meta(w), **A.bank_exposure(STATE, w, bank, min_risk),
+    if state_name and state_name not in set(STATE.districts["state"]):
+        raise HTTPException(404, f"unknown state '{state_name}'")
+    return {**_window_meta(w),
+            **A.bank_exposure(STATE, w, bank, min_risk, state_name=state_name),
             "segregation_note": A.SEGREGATION_NOTE}
 
 

@@ -23,15 +23,25 @@ export function riskColor(risk) {
 export const pct = (v, digits = 1) =>
   v === null || v === undefined || Number.isNaN(v) ? '--' : `${(v * 100).toFixed(digits)}%`
 
+// THE single risk formatter. Every surface that shows a risk score - map
+// tooltip, watchlist, stats blocks, drill-down, alerts, intelligence report -
+// calls this and nothing else, so the same district can never read 76.8% in one
+// panel and 77% in another. There is deliberately no `digits` parameter: an
+// optional precision argument is exactly how the two spellings diverged.
+//
 // Isotonic calibration clips its top bin to exactly 1.0, so a raw display would
 // read "100%" - a claim of certainty the model does not make. On the held-out
-// test months that top bin actually fires ~97% of the time, so we show ">99%"
-// instead. Same reasoning at the bottom: "<1%" rather than a bare 0%.
-export function riskLabel(v, digits = 0) {
-  if (v === null || v === undefined || Number.isNaN(v)) return '--'
+// test months that top bin actually fires ~97% of the time, so we show ">99%".
+// Same reasoning at the bottom: "<1%" rather than a bare 0%.
+//
+// A missing score is "no score" (this district was not scored for this window),
+// which is different from "--" (nothing loaded yet); callers use "--" for the
+// loading case themselves.
+export function riskLabel(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return 'no score'
   if (v >= 0.995) return '>99%'
   if (v > 0 && v < 0.005) return '<1%'
-  return `${(v * 100).toFixed(digits)}%`
+  return `${Math.round(v * 100)}%`
 }
 
 // Indian-style short money, matching the API's own formatting.

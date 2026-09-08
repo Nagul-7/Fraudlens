@@ -3,14 +3,20 @@ import { riskColor, riskLabel } from '../risk.js'
 
 // What a bank is allowed to see. No reason codes, no complaint details, no
 // district ranking - an operational instruction, not the intelligence behind it.
-export default function BankPanel({ data, bank, note, onSelectDistrict }) {
+export default function BankPanel({ data, bank, note, stateFilter, onSelectDistrict }) {
   if (!data) return null
   const t = data.totals
+  // A bank with nothing in the selected state must say so, never silently fall
+  // back to national figures.
+  const empty = stateFilter && !data.atm_exposure.length && !data.accounts_holding.length
   return (
     <div className="panel right">
       <div className="detail-head">
         <div className="dname">{bank}</div>
-        <div className="dstate">Institutional exposure &middot; this window</div>
+        <div className="dstate">
+          Institutional exposure &middot; this window
+          {stateFilter && <> &middot; <strong>{stateFilter} only</strong></>}
+        </div>
         <div className="bank-totals">
           <div>
             <div className="score-big mono" style={{ fontSize: 27 }}>{t.our_atms_at_risk}</div>
@@ -30,9 +36,24 @@ export default function BankPanel({ data, bank, note, onSelectDistrict }) {
         <p>{note}</p>
       </div>
 
+      {empty && (
+        <div className="section">
+          <div className="empty-state">
+            <strong>No exposure in {stateFilter}</strong>
+            <p>{bank} has no ATMs in high-risk districts and no accounts holding
+               flagged funds in {stateFilter} this window.</p>
+            <p className="empty-hint">Clear the state filter to see national exposure.</p>
+          </div>
+        </div>
+      )}
+
       <div className="section">
         <h2>Our accounts holding funds &middot; freeze recommendations</h2>
-        {!data.accounts_holding.length && <div className="empty">No accounts currently holding flagged funds.</div>}
+        {!data.accounts_holding.length && (
+          <div className="empty">
+            No accounts currently holding flagged funds{stateFilter ? ` in ${stateFilter}` : ''}.
+          </div>
+        )}
         {data.accounts_holding.length > 0 && (
           <table className="tbl">
             <thead>
@@ -61,7 +82,11 @@ export default function BankPanel({ data, bank, note, onSelectDistrict }) {
 
       <div className="section">
         <h2>Our ATMs in high-risk districts</h2>
-        {!data.atm_exposure.length && <div className="empty">No exposure this window.</div>}
+        {!data.atm_exposure.length && (
+          <div className="empty">
+            No ATMs in high-risk districts{stateFilter ? ` in ${stateFilter}` : ''} this window.
+          </div>
+        )}
         {data.atm_exposure.slice(0, 12).map((r) => (
           <div key={r.district_id} className="watch-item" onClick={() => onSelectDistrict(r.district_id)}>
             <span className="watch-swatch" style={{ background: riskColor(r.risk) }} />
