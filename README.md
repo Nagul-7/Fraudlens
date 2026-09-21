@@ -25,7 +25,7 @@ actually had a cash-out, against 21.6% for a static hotspot watchlist.
 window. Advancing the clock also grades the window that just closed against
 ground truth, so the demo verifies itself as it runs.
 
-![Dashboard, district drill-down](docs/dashboard_district.png)
+![Dashboard, district drill-down](docs/ui_district.png)
 
 **State LEA with cross-jurisdiction referrals.** A state sees only its own
 districts, plus the chains carrying money *out* of its jurisdiction: eleven
