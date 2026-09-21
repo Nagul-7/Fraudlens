@@ -201,6 +201,7 @@ Optional but recommended, and fast:
 python -m features.test_leakage  # ~20 s, must print LEAKAGE TEST PASSED
 python -m model.evaluate         # ~5 s   → docs/metrics.md + charts
 python -m datagen.validate       # physics checks + plots in docs/
+pytest tests/                    # ~10 s, role-based data segregation proved over HTTP
 ```
 
 Then start the API and leave it running:
@@ -232,6 +233,20 @@ mkdir -p ~/.local/opt && tar -xf /tmp/node.tar.xz -C ~/.local/opt
 mv ~/.local/opt/node-v20.18.1-linux-x64 ~/.local/opt/node20
 export PATH=$HOME/.local/opt/node20/bin:$PATH
 ```
+
+### The SIH submission deck
+
+```bash
+python impact.py         # rupees and hours: docs/impact.md
+python find_case.py      # the typical inter-state case on slide 5: docs/deck_case.json
+python deck_charts.py    # the two deck charts
+python build_deck.py     # -> build/FraudLens_SIH2026_PixelRex.pptx (from templates/sih2026_template.pptx)
+python qa_geom.py        # geometry check, must print "issues: 0"
+```
+
+Every script runs from any working directory and writes only inside the repo. The
+two dashboard screenshots the deck uses are regenerated with
+`node dashboard/scripts/deck_screenshots.mjs` (API and dev server running).
 
 ### Reproducibility
 

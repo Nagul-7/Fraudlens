@@ -13,3 +13,11 @@ uvicorn[standard]>=0.29
 
 # Dev / utility
 python-dateutil>=2.9
+
+# Tests (tests/test_segregation.py drives the API through FastAPI's TestClient)
+pytest>=8.0
+httpx>=0.27
+
+# SIH submission deck (build_deck.py, qa_geom.py)
+python-pptx>=1.0
+Pillow>=10.0

@@ -1,20 +1,25 @@
 // One risk ramp, used by the map, the legend, the watchlist and the panels,
 // so a colour always means the same number everywhere on screen.
-// Most districts sit near zero (only ~5% of district-windows have a cash-out),
-// so the bottom of the ramp is deliberately dark and desaturated: quiet
-// districts recede into the map and the live corridors carry the colour.
+//
+// This is a SEQUENTIAL ramp - one hue, light to dark - not a green-to-red
+// rainbow. Two reasons. Technically, risk is a magnitude, and magnitude is
+// encoded by lightness; a rainbow makes readers decode hue order, and the
+// green-red pair is exactly the one red-green colourblind officers cannot
+// separate. Operationally, only ~5% of district-windows have a cash-out, so
+// the bottom of the ramp sits close to the page colour: quiet districts
+// recede and the eye lands on the live corridors without being asked to.
 export const RISK_STOPS = [
-  { at: 0.00, color: '#16362a' },   // near-zero: dark green, recessive
-  { at: 0.08, color: '#1d6046' },
-  { at: 0.20, color: '#3f8f3a' },   // green
-  { at: 0.40, color: '#b8a327' },   // amber
-  { at: 0.60, color: '#e07a22' },
-  { at: 0.80, color: '#d6452c' },   // red
-  { at: 0.92, color: '#a01d18' },
+  { at: 0.00, color: '#eceae3' },   // near-zero: warm grey, recedes into the page
+  { at: 0.08, color: '#f2ddc8' },
+  { at: 0.20, color: '#eac39f' },
+  { at: 0.40, color: '#dfa277' },
+  { at: 0.60, color: '#d07d51' },
+  { at: 0.80, color: '#b85c37' },
+  { at: 0.92, color: '#8f3d22' },   // highest risk: deep clay
 ]
 
 export function riskColor(risk) {
-  if (risk === null || risk === undefined || Number.isNaN(risk)) return '#1a2430'
+  if (risk === null || risk === undefined || Number.isNaN(risk)) return '#f2f1ec'
   let c = RISK_STOPS[0].color
   for (const s of RISK_STOPS) if (risk >= s.at) c = s.color
   return c

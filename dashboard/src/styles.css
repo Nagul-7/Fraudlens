@@ -1,29 +1,40 @@
 /* FraudLens - government operations console.
-   Dark, dense, high contrast. Numbers are monospace so columns line up and
-   stay legible from the back of a room. Sized for 1920x1080 projection. */
+
+   A calm, warm, paper-like surface rather than a dark "cyber" console. That is
+   a deliberate operational choice, not decoration: an officer reads this screen
+   for a whole shift, and a dark panel where every district glows makes every
+   district feel urgent. Here the page is quiet, ~95% of districts sit close to
+   the paper colour, and saturated clay appears only where money is actually
+   moving - so attention is spent, not drained.
+
+   Numbers stay monospace so columns line up from the back of a room.
+   Sized for 1920x1080 projection. */
 
 :root {
-  --bg:          #0b0f14;   /* page */
-  --panel:       #121821;   /* panels */
-  --panel-2:     #182231;   /* raised rows */
-  --line:        #24303f;   /* hairline borders */
-  --line-bright: #33465c;
-  --ink:         #e8eef6;   /* primary text */
-  --ink-2:       #9fb0c4;   /* secondary text */
-  --ink-3:       #6b7f96;   /* muted */
-  --accent:      #3d8bfd;   /* interactive */
+  --bg:          #faf9f7;   /* page - warm paper */
+  --panel:       #ffffff;   /* panels */
+  --panel-2:     #f5f3ee;   /* raised rows */
+  --line:        #e8e6df;   /* hairline borders */
+  --line-bright: #d9d6cc;
+  --ink:         #191917;   /* primary text - warm near-black */
+  --ink-2:       #52514e;   /* secondary text */
+  --ink-3:       #8a877f;   /* muted */
+  --accent:      #c96442;   /* interactive - clay */
 
-  /* risk ramp: green -> amber -> red */
-  --r0: #1f6f4a;
-  --r1: #4e9e3e;
-  --r2: #b8a327;
-  --r3: #d97b28;
-  --r4: #c8452f;
-  --r5: #96211c;
+  /* risk ramp: sequential, one hue, light -> dark (see risk.js) */
+  --r0: #f2ddc8;
+  --r1: #eac39f;
+  --r2: #dfa277;
+  --r3: #d07d51;
+  --r4: #b85c37;
+  --r5: #8f3d22;
 
-  --good:  #2ea043;
-  --warn:  #d29922;
-  --crit:  #d64545;
+  --good:  #0f7a35;
+  --warn:  #a97400;
+  --crit:  #c0362c;
+
+  --radius:    10px;
+  --radius-sm: 7px;
 
   --mono: "JetBrains Mono", "DejaVu Sans Mono", "SF Mono", Menlo, Consolas, monospace;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -566,3 +577,146 @@ input[type="range"] { accent-color: var(--accent); margin: 3px 0; }
 .empty-state strong { display: block; margin-bottom: 5px; font-size: 12.5px; color: var(--ink); }
 .empty-state p { margin: 0 0 6px; color: var(--ink-2); }
 .empty-state .empty-hint { color: var(--ink-3); font-style: italic; margin: 0; }
+
+/* ===========================================================================
+   Light theme corrections.
+
+   The tokens above flip most of the console, but a handful of rules were
+   written against the old dark surface with literal colours. They are
+   corrected here rather than edited in place, so the original structure stays
+   readable and the theme lives in one block.
+   =========================================================================== */
+
+/* --- shell ------------------------------------------------------------- */
+.topbar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(25,25,23,0.04);
+}
+.leaflet-container { background: var(--bg) !important; outline: none; }
+
+::-webkit-scrollbar-thumb { background: #d9d6cc; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #c3bfb3; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* --- the synthetic-data banner ----------------------------------------- */
+/* Still unmissable, no longer a hazard-tape gradient. */
+.synthetic-banner {
+  background: #fdf4e3 !important;
+  border-bottom: 1px solid #e8d3a6 !important;
+  color: #7a5a12 !important;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+}
+
+/* --- map overlays ------------------------------------------------------- */
+.district-tooltip,
+.leaflet-tooltip.district-tooltip {
+  background: var(--panel) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line-bright) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 4px 16px rgba(25,25,23,0.10) !important;
+  padding: 8px 11px !important;
+}
+.district-tooltip::before, .leaflet-tooltip.district-tooltip::before { display: none !important; }
+.tt-name  { font-weight: 650; color: var(--ink); }
+.tt-state { color: var(--ink-3); font-size: 10.5px; }
+.tt-risk  { color: var(--accent); font-weight: 650; margin-top: 2px; }
+
+.leaflet-control-zoom a {
+  background: var(--panel) !important;
+  color: var(--ink-2) !important;
+  border-color: var(--line) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--panel-2) !important; color: var(--ink) !important; }
+.leaflet-control-attribution {
+  background: rgba(255,255,255,0.82) !important;
+  color: var(--ink-3) !important;
+}
+
+/* --- chips, tags, pills -------------------------------------------------- */
+.tag.hot {
+  background: #fbeee8; color: #9a4526; border: 1px solid #edcfc0;
+}
+.tag.cold {
+  background: var(--panel-2); color: var(--ink-2); border: 1px solid var(--line);
+}
+.status-pill.new          { background: #fbeee8; color: #9a4526; }
+.status-pill.acknowledged { background: #e9f4ec; color: #17653a; }
+.status-pill.dismissed    { background: var(--panel-2); color: var(--ink-3); }
+
+.precision-chip.good { color: var(--good); border-color: #bfe0c8; background: #f1f8f3; }
+.precision-chip.warn { color: var(--warn); border-color: #ead9ac; background: #fdf7e9; }
+.precision-chip.crit { color: var(--crit); border-color: #eec9c4; background: #fdf1ef; }
+
+/* --- alerts, toasts, errors --------------------------------------------- */
+
+.toast {
+  background: var(--panel) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line-bright);
+  border-left: 3px solid var(--good);
+  box-shadow: 0 8px 28px rgba(25,25,23,0.14) !important;
+  border-radius: var(--radius) !important;
+}
+
+/* --- selected states ----------------------------------------------------- */
+
+.role-tab.on, .chip.on { color: #fff; }
+
+/* --- softer geometry ----------------------------------------------------- */
+.panel, .legend {
+  border-radius: var(--radius);
+}
+.btn, .chip, .role-tab, select, input[type="text"] {
+  border-radius: var(--radius-sm) !important;
+}
+.tbl td    { border-bottom: 1px solid var(--line); }
+.stat-row  { border-bottom: 1px solid var(--line); }
+
+/* Hairline dividers read as grey rather than as the old blue-black. */
+.brand { border-color: var(--line) !important; }
+
+/* Floating map overlays - legend, stat block, hint pill. These carried their
+   own dark glass background, so the tokens alone could not reach them. */
+.map-overlay {
+  background: rgba(255,255,255,0.92) !important;
+  border: 1px solid var(--line-bright) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 4px 18px rgba(25,25,23,0.08) !important;
+  backdrop-filter: blur(6px);
+}
+.map-overlay .legend-scale { border-radius: 3px; border: 1px solid var(--line); }
+.map-hint {
+  color: var(--ink-2) !important;
+  background: rgba(255,255,255,0.92) !important;
+}
+
+/* --- Real classes the first light-theme pass missed ---------------------------
+   These still carried dark-theme pastel text on the light surface: contrast
+   1.5-1.8:1 for the four notice classes and 3.2-3.6:1 for the muted text in a
+   watchlist row. Every pair below is COMPUTED (WCAG relative luminance,
+   translucent backgrounds composited over the surface behind them), not judged
+   by eye, and all clear 4.5:1:
+
+     segregation-box  #5c4306 on #fdf4e3   8.5:1   heading #3f2d02   12.1:1
+     freeze-rec       #8f2b22 on #fdf1ef   7.5:1   heading #6f1d16   10.2:1
+     err-box          same pair as freeze-rec
+     scope-chip       #1a4e9c on #e7f0fd   7.0:1
+     bell-badge       #ffffff on #c0362c   5.5:1
+     watch-item       #6b6963 on #ffffff   5.5:1   (4.95:1 on a hovered/selected row)
+   ---------------------------------------------------------------------------- */
+.segregation-box { background: #fdf4e3; border: 1px solid #e8d3a6; color: #5c4306; }
+.segregation-box strong { color: #3f2d02; }
+
+.freeze-rec, .err-box { background: #fdf1ef; border: 1px solid #eec9c4; color: #8f2b22; }
+.freeze-rec strong { color: #6f1d16; }
+
+.scope-chip { background: #e7f0fd; border: 1px solid #b9d1f5; color: #1a4e9c; }
+
+/* the badge's ring was the old dark surface colour; it should match the header it sits on */
+.bell-badge { border: 2px solid var(--panel); }
+
+.watch-item .watch-rank,
+.watch-item .watch-name .s { color: #6b6963; }

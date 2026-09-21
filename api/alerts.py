@@ -225,6 +225,54 @@ def cross_jurisdiction(state, window_idx, origin_state, limit=60, fraud_category
 # ---------------------------------------------------------------------------
 # Bank view: only this institution's own exposure
 # ---------------------------------------------------------------------------
+def _districts_of_state(state, state_name):
+    """District ids in one state, or None when no state is given (= no limit)."""
+    if not state_name:
+        return None
+    return {int(d) for d, st in state.district_state.items() if st == state_name}
+
+
+def bank_footprint(state, window_idx, bank, state_name=None):
+    """The districts a bank is entitled to see: where it operates an ATM, OR
+    where one of its accounts is currently holding flagged funds.
+
+    This is the ONE definition of a bank's footprint. /bank/exposure reports it
+    as `own_district_ids` and the role-scoped /heatmap filters to it, so the two
+    can never disagree about what a bank may see.
+
+    ATMs alone would leave a bank's map blank in a state where it has an exposed
+    account but no machines. Districts are matched by id, never by name: five
+    district names repeat across states (Aurangabad, Balrampur, Bilaspur,
+    Hamirpur, Pratapgarh).
+    """
+    in_scope = _districts_of_state(state, state_name)
+    atm_districts = set(state.atm_districts_by_bank.get(bank, set()))
+    if in_scope is not None:
+        atm_districts &= in_scope
+
+    account_districts = set()
+    held = state.active_holdings(window_idx)
+    if not held.empty:
+        mine = held[held["account_id"].map(state.account_bank) == bank]
+        if in_scope is not None:
+            mine = mine[mine["district_id"].isin(in_scope)]
+        account_districts = {int(d) for d in mine["district_id"].unique()}
+    return atm_districts | account_districts
+
+
+def allowed_district_ids(state, window_idx, role, state_name=None, bank=None):
+    """Which districts may this role see? None means all of them (I4C).
+
+    The server applies this before it builds a response, so out-of-scope
+    districts are never sent - the client cannot un-hide what it never received.
+    """
+    if role == "STATE":
+        return _districts_of_state(state, state_name)
+    if role == "BANK":
+        return bank_footprint(state, window_idx, bank)
+    return None
+
+
 def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40, state_name=None):
     """What one bank is allowed to see: its own ATMs in districts the model
     rates high risk, and its own accounts currently holding fraud money.
@@ -238,9 +286,7 @@ def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40, state_name=No
     all three together: filtering only the map while the account table stayed
     national is how this went wrong the first time.
     """
-    in_scope = None
-    if state_name:
-        in_scope = {int(d) for d, st in state.district_state.items() if st == state_name}
+    in_scope = _districts_of_state(state, state_name)
 
     rows = state.window_rows(window_idx).set_index("district_id")
     risky = rows[rows["risk"] >= min_risk]
@@ -295,19 +341,11 @@ def bank_exposure(state, window_idx, bank, min_risk=0.5, limit=40, state_name=No
                                        "Flag and hold pending CFCFRMS confirmation"),
                 })
     total = sum(a["amount_held"] for a in account_rows)
-    # every district where this bank has an ATM - the only geography a bank
-    # is entitled to see risk for
-    # The bank's footprint is where it has ATMs OR is holding flagged funds.
-    # ATMs alone would leave the map blank in a state where the bank has an
-    # exposed account but no machines, which reads as "nothing here" when there
-    # is in fact something to act on.
-    own_districts = sorted(
-        {int(d) for d, g in state.atms_by_district.items()
-         if (g["bank"] == bank).any() and (in_scope is None or int(d) in in_scope)}
-        # by id, never by name: 5 district names are shared across states
-        # (Aurangabad, Balrampur, Bilaspur, Hamirpur, Pratapgarh)
-        | {a["district_id"] for a in account_rows}
-    )
+    # The only geography a bank is entitled to see risk for. Computed by the
+    # shared bank_footprint() so /heatmap and this endpoint cannot disagree. (It
+    # covers every district holding the bank's flagged funds; the account table
+    # above is capped at `limit` rows, the footprint is not.)
+    own_districts = sorted(bank_footprint(state, window_idx, bank, state_name))
     return {
         "bank": bank,
         "state_name": state_name,

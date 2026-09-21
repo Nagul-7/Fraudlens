@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as api from './api.js'
 import TopBar from './components/TopBar.jsx'
 import MapView from './components/MapView.jsx'
@@ -37,6 +37,7 @@ export default function App() {
   const [bankData, setBankData] = useState(null)
   const [toasts, setToasts] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const heatmapSeq = useRef(0)     // newest heatmap request wins; see loadHeatmap
   const [detail, setDetail] = useState(null)
   const [detailState, setDetailState] = useState({ loading: false, error: null })
 
@@ -59,45 +60,62 @@ export default function App() {
     })()
   }, [])
 
+  // Who is asking. Sent with EVERY data request so the server scopes the
+  // response itself: what a role may not see is never sent, rather than sent
+  // and hidden here. (Empty values are dropped by the query-string builder.)
+  const roleParams = useMemo(
+    () => ({ role: role.id, state_name: role.stateName, bank: role.bank }),
+    [role.id, role.stateName, role.bank])
+
   // ---- heatmap reloads whenever the window or the filters change ---------
   const loadHeatmap = useCallback(async () => {
     if (!clock) return
+    // Requests can overlap (a role switch while one is in flight). Only the
+    // newest may write state, or a slow response from the PREVIOUS role could
+    // land after the switch and put out-of-scope scores back on screen.
+    const mine = ++heatmapSeq.current
     try {
-      // A State LEA's map is scoped server-side to its own jurisdiction; the
-      // state filter is then locked to that value in the UI.
-      const scopedState = role.id === 'STATE' ? role.stateName : filters.state
       const h = await api.getHeatmap({
         window: clock.window_idx,
-        state: scopedState,
+        // A State LEA's state travels as the role's state_name. The filter
+        // dropdown is locked to it, and a stale value left over from an earlier
+        // role must never ride along - the server would (rightly) refuse it.
+        state: role.id === 'STATE' ? '' : filters.state,
         fraud_category: filters.category,
+        ...roleParams,
       })
+      if (mine !== heatmapSeq.current) return
       setHeatmap(h)
-      // Filters dim districts but do not un-score them, so the tooltip is fed
-      // the full unfiltered set - otherwise hovering a dimmed district would
-      // read "no score" when it actually has one.
-      if (scopedState || filters.category) {
-        setAllScores(await api.getHeatmap({ window: clock.window_idx }))
+      // Filters dim districts but do not un-score them, so for I4C the tooltip
+      // is fed the full unfiltered set. That second, national request is made
+      // ONLY for I4C: a State LEA or a bank builds its scores from the scoped
+      // response alone, so nothing outside its scope is ever fetched.
+      if (role.id === 'I4C' && (filters.state || filters.category)) {
+        const all = await api.getHeatmap({ window: clock.window_idx, role: 'I4C' })
+        if (mine !== heatmapSeq.current) return
+        setAllScores(all)
       } else {
         setAllScores(h)
       }
       setHeatmapError(null)
     } catch (e) {
-      setHeatmapError(e.message)
+      if (mine === heatmapSeq.current) setHeatmapError(e.message)
     }
-  }, [clock, filters.state, filters.category, role.id, role.stateName])
+  }, [clock, filters.state, filters.category, role.id, roleParams])
 
   useEffect(() => { loadHeatmap() }, [loadHeatmap])
 
   // ---- district drill-down ----------------------------------------------
   useEffect(() => {
-    if (selectedId === null || !clock) { setDetail(null); return }
+    // Banks have no district drill-down (it is crime intelligence), so none is requested.
+    if (selectedId === null || !clock || role.id === 'BANK') { setDetail(null); return }
     let cancelled = false
     setDetailState({ loading: true, error: null })
-    api.getDistrict(selectedId, { window: clock.window_idx })
+    api.getDistrict(selectedId, { window: clock.window_idx, ...roleParams })
       .then((d) => { if (!cancelled) { setDetail(d); setDetailState({ loading: false, error: null }) } })
       .catch((e) => { if (!cancelled) { setDetail(null); setDetailState({ loading: false, error: e.message }) } })
     return () => { cancelled = true }
-  }, [selectedId, clock])
+  }, [selectedId, clock, role.id, roleParams])
 
   const loadFeed = useCallback(async () => {
     try {
@@ -127,11 +145,21 @@ export default function App() {
   }, [role.id, role.stateName, role.bank, clock, filters.state, filters.category])
 
   // Never carry another role's view across a switch.
+  //
+  // This used to clear the open district only for the Bank role, which left a
+  // real hole: sign in as I4C, open a district anywhere in the country, switch
+  // to a State LEA, and that district's full intelligence panel stayed on
+  // screen even when it sat outside the state's jurisdiction. The panel had been
+  // fetched under the earlier role, and a stale panel that a user cannot
+  // distinguish from a live one is exactly the thing role segregation is
+  // supposed to prevent. The selection is now dropped on any change of role or
+  // jurisdiction. (/districts/{id} is now role-scoped on the server as well, so
+  // a re-fetch under the new role would be refused, not merely hidden.)
   useEffect(() => {
     setFeedOpen(false)
     setReport(null)
     setToasts([])
-    if (role.id === 'BANK') setSelectedId(null)
+    setSelectedId(null)
   }, [role.id, role.stateName, role.bank])
 
   const pushToast = (t) => {
@@ -161,7 +189,7 @@ export default function App() {
   const onAdvance = async () => {
     setAdvancing(true)
     try {
-      const r = await api.advance({ threshold: filters.threshold })
+      const r = await api.advance({ threshold: filters.threshold, ...roleParams })
       setClock(r.clock)
       setGrade(r.previous_window)
       setRemaining((n) => (n === null ? null : Math.max(n - r.advanced_by, 0)))
@@ -207,9 +235,44 @@ export default function App() {
       return bankData ? new Set(bankData.own_district_ids) : new Set()
     }
     if (!heatmap) return null
-    if (!filters.state && !filters.category) return null      // nothing dimmed
+    // A State LEA's jurisdiction comes from the ROLE, not from the filter
+    // dropdown - the dropdown only displays it, locked. Testing filters.state
+    // alone meant a state officer's map fell through to "nothing dimmed" and
+    // painted every district in the country, while the panels beside it were
+    // correctly scoped to their state. The server was right and the map was
+    // not, which is the worst version of this bug: it looks authoritative.
+    // `heatmap` is already server-scoped for this role, so its districts are
+    // exactly what this user is entitled to see.
+    const roleScoped = role.id === 'STATE' && !!role.stateName
+    if (!roleScoped && !filters.state && !filters.category) return null
     return new Set(heatmap.districts.map((d) => d.district_id))
-  }, [heatmap, filters.state, filters.category, role.id, bankData])
+  }, [heatmap, filters.state, filters.category, role.id, role.stateName, bankData])
+
+  // district_id -> state, from the GeoJSON the map already holds
+  const stateOfDistrict = useMemo(
+    () => new Map((geo?.features ?? []).map((f) => [f.properties.district_id, f.properties.state])),
+    [geo])
+
+  // Only open a district this role may see. Banks have no drill-down at all;
+  // a State LEA may open only its own state's districts.
+  const selectDistrict = useCallback((id) => {
+    if (role.id === 'BANK') return
+    if (role.id === 'STATE' && stateOfDistrict.get(id) !== role.stateName) return
+    setSelectedId(id)
+  }, [role.id, role.stateName, stateOfDistrict])
+
+  // What the map tooltip says about a district the role may not see: a LABEL,
+  // never a number.
+  const scope = useMemo(() => {
+    if (role.id === 'STATE') {
+      return { label: 'Outside your jurisdiction', isOut: (p) => p.state !== role.stateName }
+    }
+    if (role.id === 'BANK') {
+      const own = new Set(bankData?.own_district_ids ?? [])
+      return { label: 'Outside your footprint', isOut: (p) => !own.has(p.district_id) }
+    }
+    return null
+  }, [role.id, role.stateName, bankData])
 
   const watchlist = useMemo(
     () => (heatmap ? heatmap.districts.slice(0, filters.topK) : []),
@@ -257,20 +320,20 @@ export default function App() {
           <FilterPanel
             states={states} filters={filters} setFilters={setFilters}
             heatmap={heatmap} watchlist={watchlist}
-            selectedId={selectedId} onSelect={setSelectedId}
+            selectedId={selectedId} onSelect={selectDistrict}
             lockedState={role.id === 'STATE' ? role.stateName : null}
             bankMode={role.id === 'BANK'}
+            inbox={role.id === 'STATE' ? (
+              <CrossJurisdiction data={xj} stateName={role.stateName}
+                                 category={filters.category}
+                                 onSelectDistrict={null} />
+            ) : null}
           />
-          {role.id === 'STATE' && (
-            <CrossJurisdiction data={xj} stateName={role.stateName}
-                               category={filters.category}
-                               onSelectDistrict={setSelectedId} />
-          )}
         </div>
 
         <div className="map-wrap">
           <MapView geo={geo} riskById={riskById} visibleIds={visibleIds}
-                   selectedId={selectedId} onSelect={setSelectedId} />
+                   selectedId={selectedId} onSelect={selectDistrict} scope={scope} />
           <Legend nVisible={heatmap?.n_districts ?? 0} nTotal={724}
                   categoryActive={!!filters.category} />
           <div className="map-overlay map-hint">
@@ -316,7 +379,7 @@ export default function App() {
 
         {role.id === 'BANK'
           ? <BankPanel data={bankData} bank={role.bank} note={segNote}
-                       stateFilter={filters.state} onSelectDistrict={setSelectedId} />
+                       stateFilter={filters.state} onSelectDistrict={null} />
           : selectedId !== null && (
               <DistrictPanel detail={detail} loading={detailState.loading}
                              error={detailState.error} onClose={() => setSelectedId(null)} />

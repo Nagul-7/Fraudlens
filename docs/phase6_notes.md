@@ -57,7 +57,9 @@ state cannot act there, and the destination state does not know the case exists.
 The inbox lists, for the signed-in state, every active chain whose complaint was
 filed there but whose money is now held elsewhere: origin district, destination
 district and state, amount held, chain age, and the destination's own predicted
-risk. Clicking a row jumps the map to the destination district.
+risk. Rows are informational, not clickable: the destination district is in
+another state, so opening its drill-down would be exactly the out-of-jurisdiction
+access the role split exists to prevent.
 
 In the screenshot above, Jharkhand has 11 chains carrying Rs 1.3L out of state,
 including Koderma to Purba Bardhaman in West Bengal where the destination
@@ -150,3 +152,32 @@ outbound chains, one of them into a West Bengal district our own model rates
 above 99% for the next six hours. Without that view, the Jharkhand officer would
 never look at West Bengal, and the West Bengal officer would have no idea a
 Jharkhand case was landing on them.
+
+## Follow-up: what "enforced on the server" means, and how it is tested
+
+After the first pass, a check in a real browser found that the district-level
+endpoints were role-blind: `/heatmap`, `/alerts`, `/districts/{id}` and the
+payload of `POST /simulate/advance` all returned national data to any caller, and a
+State LEA or bank session could read it (a State LEA received all 724 districts
+across 35 states). Only `/feed`, `/cross-jurisdiction` and `/bank/exposure` were
+scoped. All four now take the same `role`, `state_name` and `bank` parameters and
+filter **before** building the response:
+
+| role | `/heatmap` | `/districts/{id}` | `/alerts` | `POST /simulate/advance` |
+|---|---|---|---|---|
+| I4C, or no role | all 724 | any | all | all |
+| STATE | its own state only; a `state` filter can never widen it (403) | its own districts, else 403 | its own state's | its own state's alerts and top districts |
+| BANK | its own footprint only, no rank and no chain counts | 403 | 403 | no alerts, no top districts, no national self-grade |
+
+A bank's footprint has one definition, `bank_footprint()` in `api/alerts.py`: the
+districts where it has an ATM or is holding flagged funds. `/heatmap` and
+`/bank/exposure` both call it, so they cannot disagree.
+
+`tests/test_segregation.py` (20 tests, `pytest tests/`) proves this over HTTP. Against
+the unfixed API 18 of the 20 fail; against the fixed one all pass.
+
+What this does and does not promise: there is no login, so the role is asserted by the
+caller. A response never contains more than the asserted role is entitled to, but
+nothing stops a client asserting a different role. Production would bind the role to an
+authenticated identity. The national self-grade in the top bar (counts only, no district
+identities) is still shown to a State LEA.

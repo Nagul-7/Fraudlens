@@ -45,7 +45,7 @@ export default function Sparkline({ history, width = 340, height = 74 }) {
     <div>
       <svg width={width} height={height} style={{ display: 'block' }}>
         {[0.25, 0.5, 0.75].map((g) => (
-          <line key={g} x1={pad} x2={pad + w} y1={y(g)} y2={y(g)} stroke="#24303f" strokeWidth="1" />
+          <line key={g} x1={pad} x2={pad + w} y1={y(g)} y2={y(g)} style={{ stroke: 'var(--line)' }} strokeWidth="1" />
         ))}
         {anyInSample && (
           <rect x={pad} y={pad} width={Math.max(xRaw(firstOOS) - pad, 0)} height={h}
@@ -55,20 +55,20 @@ export default function Sparkline({ history, width = 340, height = 74 }) {
         {days.map((d, i) => d.withdrawals > 0 && (
           <line key={`w${i}`} x1={xDay(i)} x2={xDay(i)} y1={pad + h}
                 y2={pad + h - (d.withdrawals / maxWd) * 13}
-                stroke="#e07a22" strokeWidth="2.4" opacity="0.55" strokeLinecap="round" />
+                stroke="#b85c37" strokeWidth="2.4" opacity="0.55" strokeLinecap="round" />
         ))}
         <path d={dayArea} fill="rgba(61,139,253,0.13)" />
         <path d={rawLine} fill="none" stroke="#3d8bfd" strokeWidth="0.8" opacity="0.34" />
-        <path d={dayLine} fill="none" stroke="#5b9dfd" strokeWidth="1.9"
+        <path d={dayLine} fill="none" stroke="#1f66bd" strokeWidth="1.9"
               strokeLinejoin="round" strokeLinecap="round" />
         <circle cx={xDay(days.length - 1)} cy={y(lastDay.peak)} r="3.6"
-                fill={riskColor(lastDay.peak)} stroke="#0b0f14" strokeWidth="1.6" />
+                fill={riskColor(lastDay.peak)} style={{ stroke: 'var(--panel)' }} strokeWidth="1.6" />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5,
                     color: 'var(--ink-3)', marginTop: 2 }}>
         <span>{days.length} days ago</span>
-        <span><span style={{ color: '#5b9dfd' }}>daily peak risk</span>
-              {'  '}<span style={{ color: '#e07a22' }}>actual cash-outs</span></span>
+        <span><span style={{ color: '#1f66bd' }}>daily peak risk</span>
+              {'  '}<span style={{ color: '#a8501f' }}>actual cash-outs</span></span>
         <span>now</span>
       </div>
       {anyInSample && (

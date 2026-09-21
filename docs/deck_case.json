@@ -1,0 +1,20 @@
+{
+  "complaint_id": 95690,
+  "fraud_category": "UPI",
+  "amount": 35900.0,
+  "victim_district": "East Singhbhum",
+  "victim_state": "Jharkhand",
+  "reported_at": "2025-12-05 19:33:40",
+  "fraud_at": "2025-12-05 17:54:28",
+  "hops": 4,
+  "cash_district": "Rewari",
+  "cash_state": "Haryana",
+  "window_open": "2025-12-06 06:00:00",
+  "first_withdrawal": "2025-12-06 08:03:00",
+  "n_withdrawals": 1,
+  "cash_total": 32000.0,
+  "rank_in_window": 12,
+  "hours_fraud_to_cash": 14.1,
+  "warning_minutes": 123,
+  "population_count_same_pattern": 7218
+}

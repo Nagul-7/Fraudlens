@@ -98,6 +98,10 @@ class AppState:
         conn.close()
         self.atms_by_district = {d: g for d, g in atms.groupby("district_id")}
         self.n_atms = atms.groupby("district_id").size().to_dict()
+        # bank -> the districts where it operates at least one ATM. Precomputed
+        # because the bank-scoped /heatmap needs it on every request.
+        self.atm_districts_by_bank = {b: {int(d) for d in g["district_id"]}
+                                      for b, g in atms.groupby("bank")}
 
     def _load_holdings(self):
         """Money currently parked in mule accounts, per (district, window).

@@ -10,15 +10,20 @@ const CATEGORIES = [
   ['digital_arrest', 'Digital arrest'],
 ]
 
+// Renders a fragment, not its own `.panel`: App wraps this in the single scrolling
+// left panel. A second `.panel.left` here made two nested scroll containers, and the
+// inner one shrank to fit and clipped the filters under whatever followed it.
+// `inbox` is an optional block (the State LEA referral inbox) placed above the
+// watchlist so it stays in view instead of sitting below a long list.
 export default function FilterPanel({
   states, filters, setFilters, heatmap, watchlist, selectedId, onSelect, lockedState,
-  bankMode,
+  bankMode, inbox,
 }) {
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }))
   const above = heatmap ? heatmap.districts.filter((d) => d.risk >= filters.threshold).length : 0
 
   return (
-    <div className="panel left">
+    <>
       <div className="section">
         <h2>Filters</h2>
 
@@ -115,6 +120,8 @@ export default function FilterPanel({
         </div>
       </div>
 
+      {inbox}
+
       <div className="section" style={{ flex: 1 }}>
         <h2>Watchlist &middot; top {filters.topK}</h2>
         {!watchlist.length && <div className="empty">No districts match these filters.</div>}
@@ -134,6 +141,6 @@ export default function FilterPanel({
       </div>
       </>
       )}
-    </div>
+    </>
   )
 }

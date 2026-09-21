@@ -40,7 +40,8 @@ export default function CrossJurisdiction({ data, stateName, category, onSelectD
           <tbody>
             {data.referrals.slice(0, 10).map((r, i) => (
               <tr key={`${r.complaint_id}-${i}`} className="xj-row"
-                  onClick={() => onSelectDistrict(r.dest_district_id)}
+                  style={onSelectDistrict ? undefined : { cursor: 'default' }}
+                  onClick={onSelectDistrict ? () => onSelectDistrict(r.dest_district_id) : undefined}
                   title={`Complaint #${r.complaint_id} (${r.fraud_category}) filed in `
                          + `${r.origin_district}; money now in ${r.dest_district}, `
                          + `${r.dest_state} (risk ${riskLabel(r.dest_risk)})`}>

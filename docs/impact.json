@@ -1,0 +1,104 @@
+{
+  "test_windows": 244,
+  "districts": 724,
+  "total_rupees_withdrawn": 1243813000.0,
+  "windows_with_a_cashout": 244,
+  "by_k": {
+    "10": {
+      "model": {
+        "rupees_inside_watchlist": 505854000.0,
+        "share_of_rupees": 0.40669618342950264
+      },
+      "lead_time_hours": {
+        "median": 0.3637499999999818,
+        "mean": 1.0548808595779917,
+        "p25": 0.15097222222220807,
+        "p75": 1.4255555555555475,
+        "n_cells": 2138
+      },
+      "recoverable_after_hours": {
+        "1": {
+          "rupees": 400814500.0,
+          "share_of_flagged": 0.7923521411316309
+        },
+        "2": {
+          "rupees": 304314000.0,
+          "share_of_flagged": 0.6015846469534688
+        },
+        "3": {
+          "rupees": 215943000.0,
+          "share_of_flagged": 0.4268879953504371
+        }
+      },
+      "trailing_heat": {
+        "rupees_inside_watchlist": 354936000.0,
+        "share_of_rupees": 0.2853612239138842
+      },
+      "rupee_margin_pts": 12.133495951561846
+    },
+    "25": {
+      "model": {
+        "rupees_inside_watchlist": 898555000.0,
+        "share_of_rupees": 0.7224196884901508
+      },
+      "lead_time_hours": {
+        "median": 0.785277777777992,
+        "mean": 1.5155845426091832,
+        "p25": 0.20979166666620586,
+        "p75": 2.4381944444446617,
+        "n_cells": 4686
+      },
+      "recoverable_after_hours": {
+        "1": {
+          "rupees": 738278500.0,
+          "share_of_flagged": 0.8216286148315908
+        },
+        "2": {
+          "rupees": 579567500.0,
+          "share_of_flagged": 0.644999471373483
+        },
+        "3": {
+          "rupees": 423158500.0,
+          "share_of_flagged": 0.47093221895153886
+        }
+      },
+      "trailing_heat": {
+        "rupees_inside_watchlist": 849337500.0,
+        "share_of_rupees": 0.6828498335360701
+      },
+      "rupee_margin_pts": 3.956985495408072
+    },
+    "50": {
+      "model": {
+        "rupees_inside_watchlist": 1106112000.0,
+        "share_of_rupees": 0.8892912359012166
+      },
+      "lead_time_hours": {
+        "median": 1.2986111111113132,
+        "mean": 1.8351750286535204,
+        "p25": 0.2818055555558203,
+        "p75": 3.0495833333334303,
+        "n_cells": 6883
+      },
+      "recoverable_after_hours": {
+        "1": {
+          "rupees": 919039000.0,
+          "share_of_flagged": 0.8308733654458138
+        },
+        "2": {
+          "rupees": 728809500.0,
+          "share_of_flagged": 0.6588930415726436
+        },
+        "3": {
+          "rupees": 536304000.0,
+          "share_of_flagged": 0.48485505988543653
+        }
+      },
+      "trailing_heat": {
+        "rupees_inside_watchlist": 914691500.0,
+        "share_of_rupees": 0.7353931016961552
+      },
+      "rupee_margin_pts": 15.389813420506137
+    }
+  }
+}

@@ -88,7 +88,9 @@ export default function BankPanel({ data, bank, note, stateFilter, onSelectDistr
           </div>
         )}
         {data.atm_exposure.slice(0, 12).map((r) => (
-          <div key={r.district_id} className="watch-item" onClick={() => onSelectDistrict(r.district_id)}>
+          <div key={r.district_id} className="watch-item"
+               style={onSelectDistrict ? undefined : { cursor: 'default' }}
+               onClick={onSelectDistrict ? () => onSelectDistrict(r.district_id) : undefined}>
             <span className="watch-swatch" style={{ background: riskColor(r.risk) }} />
             <span className="watch-name">
               <div className="n">{r.district}</div>

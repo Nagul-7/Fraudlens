@@ -58,6 +58,39 @@ def _window_meta(w):
 
 
 # ---------------------------------------------------------------------------
+# Role scoping. Every endpoint that returns district-level data takes the same
+# three params as /feed, validates them with _check_role, and asks
+# A.allowed_district_ids() what the caller may see BEFORE building a response.
+# The prototype has no login, so the role is asserted by the caller; what this
+# guarantees is that a response never contains more than the asserted role is
+# entitled to. Production binds the role to an authenticated identity instead.
+# ---------------------------------------------------------------------------
+# Factories, not shared objects: each route gets its own Query instance.
+def q_role():
+    return Query("I4C", description="I4C | STATE | BANK - scopes the response to what this role may see")
+
+
+def q_state_name():
+    return Query(None, description="the jurisdiction; required for role=STATE")
+
+
+def q_bank():
+    return Query(None, description="the institution; required for role=BANK")
+
+
+BANK_DENIED = ("This is crime intelligence and is not available to bank roles. "
+               "A bank's operational view is /bank/exposure.")
+
+
+def _deny_out_of_scope(role, district_id, state_name):
+    """403 unless this role may see this district's detail."""
+    if role == "BANK":
+        raise HTTPException(403, BANK_DENIED)
+    if role == "STATE" and STATE.district_state[district_id] != state_name:
+        raise HTTPException(403, f"district {district_id} is outside your jurisdiction ({state_name})")
+
+
+# ---------------------------------------------------------------------------
 @app.get("/")
 def root():
     return {
@@ -92,12 +125,20 @@ def health():
 
 @app.get("/heatmap")
 def heatmap(window: str = Query("current", description="'current', an ISO timestamp, or a window index"),
-            state: str | None = Query(None, description="filter to one state"),
+            state: str | None = Query(None, description="narrow to one state (can never widen a role's scope)"),
             fraud_category: str | None = Query(None, description="keep districts holding money from this fraud type"),
-            min_risk: float = Query(0.0, ge=0.0, le=1.0)):
+            min_risk: float = Query(0.0, ge=0.0, le=1.0),
+            role: str = q_role(), state_name: str | None = q_state_name(),
+            bank: str | None = q_bank()):
     """Per-district risk for one 6-hour window, joinable to the district
-    GeoJSON on `district_id`."""
+    GeoJSON on `district_id`.
+
+    Scoped by role: STATE gets only its own state's districts; BANK gets only
+    its own footprint (the same districts /bank/exposure reports) and no rank or
+    chain counts, which are crime intelligence. I4C, or no role, gets everything.
+    """
     w = _resolve(window)
+    role = _check_role(role, state_name, bank)
     rows = STATE.window_rows(w)
     out = pd.DataFrame({
         "district_id": rows["district_id"].to_numpy(),
@@ -107,16 +148,26 @@ def heatmap(window: str = Query("current", description="'current', an ISO timest
     })
     out["name"] = out["district_id"].map(STATE.district_name)
     out["state"] = out["district_id"].map(STATE.district_state)
+
+    allowed = A.allowed_district_ids(STATE, w, role, state_name, bank)
+    if allowed is not None:
+        out = out[out["district_id"].isin(allowed)]
+
     if state:
-        out = out[out["state"].str.lower() == state.lower()]
-        if out.empty:
+        if state.lower() not in {x.lower() for x in STATE.districts["state"]}:
             raise HTTPException(404, f"no districts in state '{state}'")
+        if role == "STATE" and state.lower() != state_name.lower():
+            raise HTTPException(403, f"state '{state}' is outside your jurisdiction ({state_name})")
+        out = out[out["state"].str.lower() == state.lower()]
     if fraud_category:
         keep = STATE.districts_with_category(w, fraud_category)
         out = out[out["district_id"].isin(keep)]
     out = out[out["risk"] >= min_risk].sort_values("rank")
+    if role == "BANK":
+        out = out.drop(columns=["rank", "active_chains"])
     return {
         **_window_meta(w),
+        "role": role,
         "n_districts": len(out),
         "risk_max": float(out["risk"].max()) if len(out) else 0.0,
         "districts": out.to_dict("records"),
@@ -127,14 +178,28 @@ def heatmap(window: str = Query("current", description="'current', an ISO timest
 def alerts(window: str = Query("current"),
            threshold: float = Query(0.8, ge=0.0, le=1.0),
            limit: int = Query(50, ge=1, le=724),
-           state: str | None = Query(None)):
+           state: str | None = Query(None),
+           role: str = q_role(), state_name: str | None = q_state_name(),
+           bank: str | None = q_bank()):
     """Districts whose risk for this window crosses `threshold`, each with the
-    top-3 contributing features as reason codes and a recommended action."""
+    top-3 contributing features as reason codes and a recommended action.
+
+    Alerts are crime intelligence: a bank role is refused, a State LEA sees only
+    its own state's."""
     w = _resolve(window)
+    role = _check_role(role, state_name, bank)
+    if role == "BANK":
+        raise HTTPException(403, BANK_DENIED)
     rows = STATE.window_rows(w).reset_index(drop=True)
     contrib = STATE.contributions(w)
 
-    sel = rows.index[rows["risk"] >= threshold].tolist()
+    allowed = A.allowed_district_ids(STATE, w, role, state_name, bank)
+    keep = rows["risk"] >= threshold
+    if allowed is not None:
+        keep &= rows["district_id"].isin(allowed)
+    if state:   # this filter was declared but never applied
+        keep &= rows["district_id"].map(STATE.district_state).str.lower() == state.lower()
+    sel = rows.index[keep].tolist()
     sel.sort(key=lambda i: -rows.at[i, "risk_raw"])
     sel = sel[:limit]
 
@@ -159,12 +224,16 @@ def alerts(window: str = Query("current"),
 
 
 @app.get("/districts/{district_id}")
-def district_detail(district_id: int, window: str = Query("current"), history_days: int = Query(30, ge=1, le=30)):
+def district_detail(district_id: int, window: str = Query("current"), history_days: int = Query(30, ge=1, le=30),
+                    role: str = q_role(), state_name: str | None = q_state_name(),
+                    bank: str | None = q_bank()):
     """Drill-down for one district: current score, risk history for a
     sparkline, recent complaints and withdrawals, and the chains whose money
     is sitting here right now."""
     if district_id not in STATE.district_name:
         raise HTTPException(404, f"district {district_id} not found")
+    role = _check_role(role, state_name, bank)
+    _deny_out_of_scope(role, district_id, state_name)   # drill-downs carry reason codes and case data
     w = _resolve(window)
     rows = STATE.window_rows(w).reset_index(drop=True)
     # rows are in district_id order, so position == district_id; assert rather than assume
@@ -443,12 +512,15 @@ def simulate_state():
 
 @app.post("/simulate/advance")
 def simulate_advance(steps: int = Query(1, ge=1, le=40),
-                     threshold: float = Query(0.8, ge=0.0, le=1.0)):
+                     threshold: float = Query(0.8, ge=0.0, le=1.0),
+                     role: str = q_role(), state_name: str | None = q_state_name(),
+                     bank: str | None = q_bank()):
     """Advance the clock by `steps` 6-hour windows and rescore.
 
     Also reports how the PREVIOUS window's predictions actually turned out,
     which is what makes the live demo convincing.
     """
+    role = _check_role(role, state_name, bank)
     if STATE.clock >= STATE.last_window:
         raise HTTPException(400, "clock is already at the end of the simulated data")
     previous = STATE.clock
@@ -461,24 +533,34 @@ def simulate_advance(steps: int = Query(1, ge=1, le=40),
     flagged = prev_rows[prev_rows["risk"] >= threshold]
     hits = int((flagged["y_count"] > 0).sum())
     rows = STATE.window_rows(STATE.clock)
-    top = rows.nlargest(5, "risk_raw")
+
+    # The dashboard calls this under every role, so the district-level fields
+    # are scoped exactly like /feed and /heatmap. A bank gets none of them.
+    allowed = A.allowed_district_ids(STATE, STATE.clock, role, state_name, bank) if role == "STATE" else None
+    scoped_rows = rows if allowed is None else rows[rows["district_id"].isin(allowed)]
+    top = scoped_rows.nlargest(5, "risk_raw")
+    shown_alerts = [a for a in new_alerts if role == "I4C" or (role == "STATE" and a.state == state_name)]
     return {
         "clock": _window_meta(STATE.clock),
         "advanced_by": int(STATE.clock - previous),
-        "previous_window": {
+        # National model-accuracy telemetry: counts only, no district identities.
+        # Withheld from banks - a national cash-out count is crime intelligence.
+        "previous_window": None if role == "BANK" else {
             **_window_meta(previous),
             "n_flagged": len(flagged),
             "n_flagged_correct": hits,
             "precision": round(hits / len(flagged), 4) if len(flagged) else None,
             "actual_withdrawal_districts": int((prev_rows["y_count"] > 0).sum()),
         },
-        "new_alerts": [a.to_dict() for a in new_alerts],
+        "new_alerts": [a.to_dict() for a in shown_alerts],
         "now": {
-            "n_above_threshold": int((rows["risk"] >= threshold).sum()),
-            "top_districts": [{"district_id": int(r.district_id),
-                               "name": STATE.district_name[int(r.district_id)],
-                               "state": STATE.district_state[int(r.district_id)],
-                               "risk": round(float(r.risk), 4)} for r in top.itertuples()],
+            "n_above_threshold": (None if role == "BANK"
+                                  else int((scoped_rows["risk"] >= threshold).sum())),
+            "top_districts": [] if role == "BANK" else [
+                {"district_id": int(r.district_id),
+                 "name": STATE.district_name[int(r.district_id)],
+                 "state": STATE.district_state[int(r.district_id)],
+                 "risk": round(float(r.risk), 4)} for r in top.itertuples()],
         },
     }
 

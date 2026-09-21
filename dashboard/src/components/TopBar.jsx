@@ -46,8 +46,11 @@ export default function TopBar({ clock, grade, onAdvance, onReset, advancing, re
       <div className={`grade ${flash ? 'flash' : ''}`}>
         {!grade ? (
           <div className="grade-empty">
-            Advance the clock to score the next 6-hour window. Each step grades the
-            window that just closed against what actually happened.
+            {role?.id === 'BANK'
+              ? 'Model self-grading is national crime intelligence and is not shown to bank roles. '
+                + 'Advance the clock to update your exposure.'
+              : 'Advance the clock to score the next 6-hour window. Each step grades the '
+                + 'window that just closed against what actually happened.'}
           </div>
         ) : (
           <>

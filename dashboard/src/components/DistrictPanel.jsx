@@ -37,7 +37,16 @@ export default function DistrictPanel({ detail, loading, error, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
           <div>
             <div className="dname">{d.name}</div>
-            <div className="dstate">{d.state}</div>
+            <div className="dstate" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 9px' }}>
+              {d.state}
+              {/* is_hotspot is the static list of historically known mule corridors, NOT the model's
+                  ranked watchlist. The old label ("Not on watchlist") contradicted the watchlist beside
+                  it: a district ranked #1 was tagged as not being on it. */}
+              <span className={`tag ${d.is_hotspot ? 'hot' : 'cold'}`}
+                    title="Whether this district is one of the historically known mule corridors. Independent of its current risk rank.">
+                {d.is_hotspot ? 'Known corridor' : 'Not a known corridor'}
+              </span>
+            </div>
           </div>
           <button className="btn ghost" onClick={onClose}>Close</button>
         </div>
@@ -50,11 +59,6 @@ export default function DistrictPanel({ detail, loading, error, onClose }) {
           <div>
             <div style={{ fontSize: 22, fontWeight: 650 }} className="mono">#{d.rank}</div>
             <div className="score-caption">of 724</div>
-          </div>
-          <div style={{ paddingBottom: 3 }}>
-            <span className={`tag ${d.is_hotspot ? 'hot' : 'cold'}`}>
-              {d.is_hotspot ? 'Known corridor' : 'Not on watchlist'}
-            </span>
           </div>
         </div>
       </div>
