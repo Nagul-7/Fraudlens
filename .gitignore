@@ -47,3 +47,8 @@ dashboard/shots/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Assistant prompts and patch bundles (not project files)
+*_PROMPT.md
+deck-sync/
+*.zip
